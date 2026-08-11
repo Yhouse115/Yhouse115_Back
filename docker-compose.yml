@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: .
+    container_name: whyhouse-backend
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      APP_NAME: ${APP_NAME:-WhyHouse Backend}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      API_PREFIX: ${API_PREFIX:-/api/v1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./app:/app/app:ro
+    networks:
+      - whyhouse
+
+  frontend:
+    image: node:22-alpine
+    container_name: whyhouse-frontend
+    working_dir: /app
+    command: >
+      sh -c "if [ -f package.json ]; then
+      npm install && ${FRONTEND_COMMAND:-npm run dev -- --host 0.0.0.0};
+      else
+      echo 'Frontend project is not initialized at ${FRONTEND_CONTEXT:-../WhyHouse_Front}. Add package.json to run it.';
+      sleep infinity;
+      fi"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ${FRONTEND_CONTEXT:-../WhyHouse_Front}:/app
+    environment:
+      VITE_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}
+    depends_on:
+      - backend
+    networks:
+      - whyhouse
+    profiles:
+      - msa
+
+networks:
+  whyhouse:
+    name: whyhouse-network

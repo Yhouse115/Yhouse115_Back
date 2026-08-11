@@ -1,0 +1,2 @@
+"""WhyHouse backend application package."""
+
