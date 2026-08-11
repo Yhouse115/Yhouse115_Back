@@ -32,3 +32,12 @@ The following endpoints are planned but not implemented in this setup phase.
 
 Detailed request and response schemas should be added here when each endpoint is implemented.
 
+## Runtime/System
+
+### `GET /api/v1/system/config`
+
+Returns browser-safe runtime configuration and whether external dependencies have been configured. Secret values are never returned.
+
+### `GET /api/v1/system/dependencies`
+
+Returns dependency configuration status and performs a lightweight database connectivity check when `DATABASE_URL` is configured.

@@ -26,11 +26,17 @@ pytest
 
 ## Docker Compose
 
-백엔드만 실행:
+백엔드와 로컬 PostGIS DB 실행:
 
 ```bash
 cp .env.example .env
 docker compose up --build backend
+```
+
+DB 연결 확인:
+
+```bash
+curl http://localhost:8000/api/v1/system/dependencies
 ```
 
 백엔드와 프론트엔드를 같은 MSA 네트워크에서 실행:
@@ -41,9 +47,17 @@ docker compose --profile msa up --build
 
 기본 프론트엔드 경로는 `../WhyHouse_Front`입니다. 다른 위치를 사용할 때는 `.env`의 `FRONTEND_CONTEXT`를 수정합니다.
 
+## Runtime Integrations
+
+- Supabase: `.env`의 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`을 채웁니다.
+- Local DB: 기본 compose 값은 `postgresql://whyhouse:whyhouse@database:5432/whyhouse`입니다.
+- Naver Maps: `.env`의 `NAVER_MAPS_CLIENT_ID`, `NAVER_MAPS_CLIENT_SECRET`을 채웁니다.
+- CI: `.github/workflows/ci.yml`에서 pytest와 Docker image build를 실행합니다.
+
 ## Documents
 
 - [Project Summary](docs/project-summary.md)
 - [Backend Architecture](docs/backend-architecture.md)
 - [API Contract](docs/api-contract.md)
 - [Data Scope](docs/data-scope.md)
+- [Runtime Integrations](docs/runtime-integrations.md)
