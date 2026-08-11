@@ -34,7 +34,7 @@ Routes should stay thin and delegate calculations to services. Services should n
 
 Database access should go through `app/db/` and repository modules. Supabase is configured as the hosted product boundary, while local Docker uses a PostGIS-enabled PostgreSQL container through the same `DATABASE_URL` shape.
 
-Naver Maps integration should stay behind `app/clients/naver_maps.py`. Feature code should request configuration or future client methods from that module instead of reading Naver credentials directly.
+Naver Maps integration should stay behind `app/clients/naver_maps.py`. Feature code should request configuration or future client methods from that module instead of reading Naver credentials directly. Browser map rendering should use a separate frontend-safe key; backend settings are for server-side APIs such as geocoding and reverse geocoding.
 
 ## Docker Compose Boundary
 

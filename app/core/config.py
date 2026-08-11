@@ -32,8 +32,12 @@ class Settings(BaseSettings):
         alias="NAVER_MAPS_CLIENT_SECRET",
     )
     naver_maps_geocode_base_url: str = Field(
-        default="https://naveropenapi.apigw.ntruss.com/map-geocode/v2",
+        default="https://maps.apigw.ntruss.com/map-geocode/v2",
         alias="NAVER_MAPS_GEOCODE_BASE_URL",
+    )
+    naver_maps_reverse_geocode_base_url: str = Field(
+        default="https://maps.apigw.ntruss.com/map-reversegeocode/v2",
+        alias="NAVER_MAPS_REVERSE_GEOCODE_BASE_URL",
     )
 
     @property

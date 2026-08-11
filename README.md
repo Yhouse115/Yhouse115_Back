@@ -60,3 +60,4 @@ docker compose --profile msa up --build
 - [Backend Architecture](docs/backend-architecture.md)
 - [API Contract](docs/api-contract.md)
 - [Data Scope](docs/data-scope.md)
+- [Runtime Integrations](docs/runtime-integrations.md)

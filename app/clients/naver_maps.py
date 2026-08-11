@@ -8,6 +8,7 @@ class NaverMapsConfig:
     client_id: str
     client_secret: str
     geocode_base_url: str
+    reverse_geocode_base_url: str
 
     @property
     def geocode_headers(self) -> dict[str, str]:
@@ -25,4 +26,5 @@ def get_naver_maps_config() -> NaverMapsConfig:
         client_id=settings.naver_maps_client_id,
         client_secret=settings.naver_maps_client_secret,
         geocode_base_url=settings.naver_maps_geocode_base_url,
+        reverse_geocode_base_url=settings.naver_maps_reverse_geocode_base_url,
     )
