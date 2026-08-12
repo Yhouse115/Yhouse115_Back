@@ -1,8 +1,8 @@
 -- Migration: 20260812000000_create_domain_tables.sql
 -- Create initial domain tables for WhyHouse data (.me CSV imports)
 
--- 1. admin_dong_adjacencies
-CREATE TABLE IF NOT EXISTS public.admin_dong_adjacencies (
+-- 1. admin_dong
+CREATE TABLE IF NOT EXISTS public.admin_dong (
     admin_dong_code VARCHAR(10) PRIMARY KEY,
     admin_dong_name VARCHAR(50) NOT NULL,
     legal_dong_name VARCHAR(50) NOT NULL,
