@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS public.residential_buildings (
 CREATE INDEX IF NOT EXISTS idx_res_bld_admin_dong ON public.residential_buildings (admin_dong_code);
 CREATE INDEX IF NOT EXISTS idx_res_bld_category ON public.residential_buildings (property_category);
 
--- 3. large_developments
-CREATE TABLE IF NOT EXISTS public.large_developments (
+-- 3. history_developments
+CREATE TABLE IF NOT EXISTS public.history_developments (
     id BIGSERIAL PRIMARY KEY,
     pnu VARCHAR(19),
     jibun_address VARCHAR(255),
@@ -53,11 +53,11 @@ CREATE TABLE IF NOT EXISTS public.large_developments (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_large_dev_pnu ON public.large_developments (pnu);
-CREATE INDEX IF NOT EXISTS idx_large_dev_admin_dong ON public.large_developments (admin_dong_code);
+CREATE INDEX IF NOT EXISTS idx_hist_dev_pnu ON public.history_developments (pnu);
+CREATE INDEX IF NOT EXISTS idx_hist_dev_admin_dong ON public.history_developments (admin_dong_code);
 
--- 4. rents
-CREATE TABLE IF NOT EXISTS public.rents (
+-- 4. transaction_rents
+CREATE TABLE IF NOT EXISTS public.transaction_rents (
     id BIGSERIAL PRIMARY KEY,
     pnu VARCHAR(19),
     jibun_address VARCHAR(255),
@@ -78,12 +78,12 @@ CREATE TABLE IF NOT EXISTS public.rents (
     use_rr_right VARCHAR(50)
 );
 
-CREATE INDEX IF NOT EXISTS idx_rents_pnu ON public.rents (pnu);
-CREATE INDEX IF NOT EXISTS idx_rents_deal_date ON public.rents (deal_date);
-CREATE INDEX IF NOT EXISTS idx_rents_admin_dong ON public.rents (admin_dong_code);
+CREATE INDEX IF NOT EXISTS idx_tx_rents_pnu ON public.transaction_rents (pnu);
+CREATE INDEX IF NOT EXISTS idx_tx_rents_deal_date ON public.transaction_rents (deal_date);
+CREATE INDEX IF NOT EXISTS idx_tx_rents_admin_dong ON public.transaction_rents (admin_dong_code);
 
--- 5. trades
-CREATE TABLE IF NOT EXISTS public.trades (
+-- 5. transaction_trades
+CREATE TABLE IF NOT EXISTS public.transaction_trades (
     id BIGSERIAL PRIMARY KEY,
     pnu VARCHAR(19),
     jibun_address VARCHAR(255),
@@ -103,6 +103,6 @@ CREATE TABLE IF NOT EXISTS public.trades (
     cancel_deal_day VARCHAR(50)
 );
 
-CREATE INDEX IF NOT EXISTS idx_trades_pnu ON public.trades (pnu);
-CREATE INDEX IF NOT EXISTS idx_trades_deal_date ON public.trades (deal_date);
-CREATE INDEX IF NOT EXISTS idx_trades_admin_dong ON public.trades (admin_dong_code);
+CREATE INDEX IF NOT EXISTS idx_tx_trades_pnu ON public.transaction_trades (pnu);
+CREATE INDEX IF NOT EXISTS idx_tx_trades_deal_date ON public.transaction_trades (deal_date);
+CREATE INDEX IF NOT EXISTS idx_tx_trades_admin_dong ON public.transaction_trades (admin_dong_code);
