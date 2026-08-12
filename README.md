@@ -26,12 +26,28 @@ pytest
 
 ## Docker Compose
 
-백엔드와 로컬 PostGIS DB 실행:
+백엔드 레포에서 전체 로컬 스택 실행:
 
 ```bash
 cp .env.example .env
-docker compose up --build backend
+docker compose up -d --build
 ```
+
+기본적으로 백엔드 레포와 프론트 레포가 같은 상위 폴더 아래에 있다고 가정합니다.
+
+```text
+workspace/
+  Yhouse115_Back/
+  Yhouse115_Front/
+```
+
+프론트 폴더는 `../Yhouse115_Front` 경로에 있어야 합니다.
+
+실행되는 서비스:
+
+- `whyhouse-database`: local PostGIS/Postgres
+- `whyhouse-backend`: FastAPI backend
+- `whyhouse-frontend`: Vite frontend
 
 DB 연결 확인:
 
@@ -39,13 +55,11 @@ DB 연결 확인:
 curl http://localhost:8000/api/v1/system/dependencies
 ```
 
-백엔드와 프론트엔드를 같은 MSA 네트워크에서 실행:
+종료:
 
 ```bash
-docker compose --profile msa up --build
+docker compose down
 ```
-
-기본 프론트엔드 경로는 `../WhyHouse_Front`입니다. 다른 위치를 사용할 때는 `.env`의 `FRONTEND_CONTEXT`를 수정합니다.
 
 ## Runtime Integrations
 
