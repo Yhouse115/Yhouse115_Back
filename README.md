@@ -65,7 +65,8 @@ docker compose down
 
 - Supabase: `.env`의 `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`을 채웁니다.
 - Local DB: 기본 compose 값은 `postgresql://whyhouse:whyhouse@database:5432/whyhouse`입니다.
-- Naver Maps: `.env`의 `NAVER_MAPS_CLIENT_ID`, `NAVER_MAPS_CLIENT_SECRET`을 채웁니다.
+- Naver Maps: 공개 Client ID는 프론트와 같은 `.env` 키인 `VITE_NAVER_MAPS_CLIENT_ID`를 채웁니다. 서버 호출에 필요한 Secret은 backend-only 값인 `NAVER_MAPS_CLIENT_SECRET`을 채웁니다.
+- Naver Map Styles: Naver Style Editor Metadata ID가 있으면 프론트와 같은 `.env` 키인 `VITE_NAVER_MAPS_DEFAULT_STYLE_ID`, `VITE_NAVER_MAPS_TRANSIT_STYLE_ID`, `VITE_NAVER_MAPS_SOFT_STYLE_ID`, `VITE_NAVER_MAPS_NO_TRANSIT_STYLE_ID`를 채웁니다.
 - CI: `.github/workflows/ci.yml`에서 pytest와 Docker image build를 실행합니다.
 
 ## Documents

@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,7 +25,10 @@ class Settings(BaseSettings):
 
     naver_maps_client_id: Optional[str] = Field(
         default=None,
-        alias="NAVER_MAPS_CLIENT_ID",
+        validation_alias=AliasChoices(
+            "VITE_NAVER_MAPS_CLIENT_ID",
+            "NAVER_MAPS_CLIENT_ID",
+        ),
     )
     naver_maps_client_secret: Optional[str] = Field(
         default=None,
