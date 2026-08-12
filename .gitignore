@@ -33,3 +33,6 @@ tmp/
 .docker/
 docker-compose.override.yml
 
+# Node (Supabase CLI devDependency)
+node_modules/
+
