@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.demo import router as demo_router
+from app.api.routes.environment import router as environment_router
 from app.api.routes.family_map import router as family_map_router
 from app.api.routes.health import router as health_router
 from app.api.routes.system import router as system_router
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     application.include_router(family_map_router, prefix=settings.api_prefix)
     application.include_router(transaction_router)
     application.include_router(transaction_router, prefix=settings.api_prefix)
+    application.include_router(environment_router, prefix=settings.api_prefix)
     return application
 
 

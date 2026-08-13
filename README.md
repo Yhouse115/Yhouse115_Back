@@ -43,6 +43,39 @@ source and must not replace that serving ID.
 Do not use an environment loader in production until it targets
 `apartment_complex` and emits the public fifth-axis value `convenience`. Raw
 source files and generated local walking outputs stay outside this repository.
+## Environment map API data load
+
+Apply `20260813120000_create_environment_serving_tables.sql`, then validate the
+five-axis serving payload before importing it. The loader consumes the existing
+normalized facilities and pre-computed walking-access CSVs under the workspace;
+it does not recompute walking distance.
+
+```bash
+python scripts/load_environment_data.py
+python scripts/load_environment_data.py --emit-psql | docker exec -i whyhouse-database psql -v ON_ERROR_STOP=1 -U whyhouse -d whyhouse
+```
+
+The API routes are documented in [API Contract](docs/api-contract.md).
+
+### Supabase serving-table load
+
+The environment API reads only these five serving tables in Supabase:
+`source_dataset`, `apartment_complex`, `environment_feature`,
+`complex_feature_access`, and `complex_environment_summary`.
+
+First preview the ID mapping to the already-loaded Supabase facilities, then
+apply it. Both commands use conflict-key upserts and may be rerun safely.
+
+```bash
+python scripts/load_environment_serving_to_supabase.py
+python scripts/load_environment_serving_to_supabase.py --apply
+python scripts/load_daily_convenience_access_to_supabase.py --apply
+```
+
+The daily-convenience loader uses the local OA-21208 walking graph to compute
+the 500 m card count, nearest mart, and detail markers before it writes the
+two access/summary tables. It does not calculate distance while serving a
+request.
 
 ## Docker Compose
 

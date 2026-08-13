@@ -30,10 +30,9 @@ Returns exactly five cards in this display order:
 The server supplies stored walking facts and a display-ready headline. Clients
 must not calculate distance, walking time, or facility counts themselves.
 
-The 생활편의 source facilities are already loaded, including convenience stores
-and marts. Its card remains `coming_soon` until corresponding
-`complex_feature_access` and `complex_environment_summary` rows are computed
-and loaded; it must not be represented as zero facilities.
+The convenience source facilities are loaded, including convenience stores and
+marts. Once the corresponding pre-computed access and summary rows are loaded,
+the card is `available`; it must not be represented as zero facilities.
 
 ### `GET /api/v1/complexes/{complexId}/environment/features?axis=medical&limit=20`
 
