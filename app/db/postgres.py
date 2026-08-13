@@ -24,11 +24,12 @@ async def get_db_pool() -> asyncpg.Pool:
         
         candidate_urls = [base_url]
         if "@localhost" in base_url:
+            candidate_urls.append(base_url.replace("@localhost", "@127.0.0.1"))
             candidate_urls.append(base_url.replace("@localhost", "@database"))
             candidate_urls.append(base_url.replace("@localhost", "@whyhouse-database"))
-            candidate_urls.append(base_url.replace("@localhost", "@host.docker.internal"))
         elif "@database" in base_url:
             candidate_urls.append(base_url.replace("@database", "@localhost"))
+            candidate_urls.append(base_url.replace("@database", "@127.0.0.1"))
 
         last_err = None
         for candidate in candidate_urls:
