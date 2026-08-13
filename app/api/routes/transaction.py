@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.db.postgres import get_db_connection
 from app.schemas.transaction import (
+    BuildingListResponse,
+    BuildingUnitsResponse,
     DevelopmentListResponse,
     InventorySummaryResponse,
     RentListResponse,
@@ -13,7 +15,7 @@ from app.schemas.transaction import (
 )
 from app.services.transaction_service import TransactionService
 
-router = APIRouter(tags=["Transaction & Development APIs"])
+router = APIRouter(tags=["Transaction & Building & Development APIs"])
 
 
 @router.get("/summary/inventory", response_model=InventorySummaryResponse)
@@ -100,4 +102,30 @@ async def get_developments_list(
 ):
     return await TransactionService.get_developments_list(
         conn, admin_dong_code, dev_type, project_name, stage_code, is_completed, pnu, page, size
+    )
+
+
+@router.get("/buildings", response_model=BuildingListResponse)
+async def get_buildings_list(
+    admin_dong_code: Optional[str] = Query(None, description="행정동 10자리 코드"),
+    building_type: Optional[List[str]] = Query(None, description="건축물 유형 (APT, TOWNHOUSE, OFFICETEL, DETACHED)"),
+    building_name: Optional[str] = Query(None, description="건물명 / 단지명 검색어"),
+    page: int = Query(1, ge=1, description="요청 페이지 번호"),
+    size: int = Query(20, ge=1, le=100, description="페이지당 출력 건수"),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_buildings_list(
+        conn, admin_dong_code, building_type, building_name, page, size
+    )
+
+
+@router.get("/buildings/unit-types", response_model=BuildingUnitsResponse)
+async def get_building_unit_types(
+    pnu: Optional[str] = Query(None, description="건축물 PNU 19자리"),
+    building_name: Optional[str] = Query(None, description="건물명 / 단지명 검색어"),
+    admin_dong_code: Optional[str] = Query(None, description="행정동 10자리 코드"),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_building_unit_types(
+        conn, pnu, building_name, admin_dong_code
     )

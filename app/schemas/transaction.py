@@ -152,3 +152,65 @@ class DevelopmentListResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: DevelopmentListData
+
+
+# --- API #6: Buildings List (/buildings) ---
+class BuildingItemDTO(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    buildingType: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    totalHouseholds: Optional[int] = None
+    totalParking: Optional[int] = None
+    useApprovalDate: Optional[str] = None
+    buildYear: Optional[int] = None
+
+
+class BuildingListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[BuildingItemDTO]
+
+
+class BuildingListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: BuildingListData
+
+
+# --- API #7: Building Unit Types (/buildings/unit-types) ---
+class UnitTypeItemDTO(BaseModel):
+    id: int
+    exclusiveArea: float
+    pyungType: int
+    householdCount: int
+
+
+class BuildingWithUnitsDTO(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    buildingType: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    totalHouseholds: Optional[int] = None
+    totalParking: Optional[int] = None
+    useApprovalDate: Optional[str] = None
+    unitTypes: List[UnitTypeItemDTO] = []
+
+
+class BuildingUnitsData(BaseModel):
+    totalBuildings: int
+    items: List[BuildingWithUnitsDTO]
+
+
+class BuildingUnitsResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[BuildingUnitsData] = None

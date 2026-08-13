@@ -428,3 +428,125 @@ class TransactionRepository:
         """
         all_records = await conn.fetch(records_query, proj_keys)
         return total_projects, [dict(r) for r in all_records]
+
+    @staticmethod
+    async def get_buildings_list(
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        building_types: Optional[List[str]],
+        building_name: Optional[str],
+        offset: int,
+        limit: int
+    ) -> Tuple[int, List[Dict[str, Any]]]:
+        params = []
+        param_idx = 1
+        where_clauses = []
+
+        if admin_dong_code:
+            where_clauses.append(f"(b.admin_dong_code = ${param_idx} OR ad.admin_dong_code = ${param_idx})")
+            params.append(admin_dong_code)
+            param_idx += 1
+
+        if building_types:
+            expanded_types = []
+            for bt in building_types:
+                expanded_types.extend(get_db_house_type_list(bt))
+            where_clauses.append(f"b.property_category = ANY(${param_idx}::text[])")
+            params.append(expanded_types)
+            param_idx += 1
+
+        if building_name:
+            where_clauses.append(f"COALESCE(b.property_name, b.jibun_address) ILIKE ${param_idx}")
+            params.append(f"%{building_name}%")
+            param_idx += 1
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        from_sql = """
+            FROM public.residential_buildings b
+            LEFT JOIN public.admin_dong ad ON b.legal_dong_name = ad.legal_dong_name OR b.admin_dong_code = ad.admin_dong_code
+        """
+
+        count_query = f"SELECT COUNT(DISTINCT b.pnu) {from_sql} {where_sql};"
+        total_count = await conn.fetchval(count_query, *params)
+
+        query = f"""
+            SELECT DISTINCT ON (b.pnu)
+                b.pnu,
+                COALESCE(b.property_name, b.jibun_address) AS building_name,
+                b.property_category AS building_type,
+                COALESCE(b.admin_dong_code, ad.admin_dong_code) AS admin_dong_code,
+                COALESCE(b.admin_dong_name, ad.admin_dong_name) AS admin_dong_name,
+                b.legal_dong_code,
+                b.legal_dong_name,
+                b.jibun_address,
+                b.jibun,
+                b.total_households,
+                b.total_parking,
+                b.use_approval_date
+            {from_sql}
+            {where_sql}
+            ORDER BY b.pnu ASC
+            OFFSET ${param_idx} LIMIT ${param_idx + 1};
+        """
+        params.extend([offset, limit])
+        rows = await conn.fetch(query, *params)
+
+        return total_count, [dict(r) for r in rows]
+
+    @staticmethod
+    async def get_building_unit_types(
+        conn: asyncpg.Connection,
+        pnu: Optional[str],
+        building_name: Optional[str],
+        admin_dong_code: Optional[str]
+    ) -> List[Dict[str, Any]]:
+        params = []
+        param_idx = 1
+        where_clauses = []
+
+        if pnu:
+            where_clauses.append(f"b.pnu = ${param_idx}")
+            params.append(pnu)
+            param_idx += 1
+
+        if building_name:
+            where_clauses.append(f"COALESCE(b.property_name, b.jibun_address) ILIKE ${param_idx}")
+            params.append(f"%{building_name}%")
+            param_idx += 1
+
+        if admin_dong_code:
+            where_clauses.append(f"(b.admin_dong_code = ${param_idx} OR ad.admin_dong_code = ${param_idx})")
+            params.append(admin_dong_code)
+            param_idx += 1
+
+        if not where_clauses:
+            return []
+
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
+        query = f"""
+            SELECT 
+                b.pnu,
+                COALESCE(b.property_name, b.jibun_address) AS building_name,
+                b.property_category AS building_type,
+                COALESCE(b.admin_dong_code, ad.admin_dong_code) AS admin_dong_code,
+                COALESCE(b.admin_dong_name, ad.admin_dong_name) AS admin_dong_name,
+                b.legal_dong_code,
+                b.legal_dong_name,
+                b.jibun_address,
+                b.total_households,
+                b.total_parking,
+                b.use_approval_date,
+                u.id AS unit_id,
+                u.exclusive_area,
+                u.pyung_type,
+                u.household_count
+            FROM public.residential_buildings b
+            JOIN public.residential_buildings_unit_types u ON b.pnu = u.pnu
+            LEFT JOIN public.admin_dong ad ON b.legal_dong_name = ad.legal_dong_name OR b.admin_dong_code = ad.admin_dong_code
+            {where_sql}
+            ORDER BY b.pnu ASC, u.pyung_type ASC, u.exclusive_area ASC;
+        """
+        rows = await conn.fetch(query, *params)
+        return [dict(r) for r in rows]

@@ -8,7 +8,7 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WhyHouse REST API (API 1~5) Testing Page</title>
+  <title>WhyHouse REST API (API 1~7) Testing Page</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -76,7 +76,7 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
   <header>
     <div class="header-title">
       <h1>WhyHouse API Testing Page</h1>
-      <p>API #1 ~ API #5 독립형 개별 테스트 & 디버깅 페이지 (밝은 테마 버전)</p>
+      <p>API #1 ~ API #7 독립형 개별 테스트 & 디버깅 페이지 (.me/api_dev.md 명세 기준)</p>
     </div>
   </header>
 
@@ -115,6 +115,8 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
     <a href="#api-3" class="nav-link">API #3 (/transactions/trades)</a>
     <a href="#api-4" class="nav-link">API #4 (/transactions/rents)</a>
     <a href="#api-5" class="nav-link">API #5 (/developments)</a>
+    <a href="#api-6" class="nav-link">API #6 (/buildings)</a>
+    <a href="#api-7" class="nav-link">API #7 (/buildings/unit-types)</a>
   </div>
 
   <!-- API #1 -->
@@ -372,6 +374,84 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- API #6 -->
+  <div id="api-6" class="api-card">
+    <div class="api-header">
+      <div class="api-title">
+        <span class="method-badge">GET</span>
+        <span>API #6 - 동네 건축물 목록 조회</span>
+      </div>
+      <span class="endpoint-url">/buildings</span>
+    </div>
+    <form onsubmit="event.preventDefault(); callApi6();">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>admin_dong_code (선택)</label>
+          <input type="text" id="api6_dong" class="form-control" value="1147051000">
+        </div>
+        <div class="form-group">
+          <label>building_type (APT, TOWNHOUSE, OFFICETEL)</label>
+          <input type="text" id="api6_bldtype" class="form-control" value="APT">
+        </div>
+        <div class="form-group">
+          <label>building_name (건물명 검색어)</label>
+          <input type="text" id="api6_bldname" class="form-control" placeholder="예: 목동, 우성">
+        </div>
+        <div class="form-group">
+          <label>page</label>
+          <input type="number" id="api6_page" class="form-control" value="1">
+        </div>
+        <div class="form-group">
+          <label>size</label>
+          <input type="number" id="api6_size" class="form-control" value="5">
+        </div>
+      </div>
+      <button type="submit" class="btn-exec">API #6 요청 전송</button>
+    </form>
+    <div class="result-box">
+      <div class="result-header">
+        <span id="api6_status" class="status-badge status-200">READY</span>
+        <span id="api6_time">0 ms</span>
+      </div>
+      <pre id="api6_result">// API #6 결과가 여기에 표시됩니다...</pre>
+    </div>
+  </div>
+
+  <!-- API #7 -->
+  <div id="api-7" class="api-card">
+    <div class="api-header">
+      <div class="api-title">
+        <span class="method-badge">GET</span>
+        <span>API #7 - 건축물 단위 평형 및 세대수 상세 조회</span>
+      </div>
+      <span class="endpoint-url">/buildings/unit-types</span>
+    </div>
+    <form onsubmit="event.preventDefault(); callApi7();">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>pnu (건축물 PNU 19자리)</label>
+          <input type="text" id="api7_pnu" class="form-control" value="1147010100103140000" placeholder="1147010100103140000">
+        </div>
+        <div class="form-group">
+          <label>building_name (건물명 검색어)</label>
+          <input type="text" id="api7_bldname" class="form-control" placeholder="예: 목동신시가지">
+        </div>
+        <div class="form-group">
+          <label>admin_dong_code (행정동 코드)</label>
+          <input type="text" id="api7_dong" class="form-control" placeholder="예: 1147055000">
+        </div>
+      </div>
+      <button type="submit" class="btn-exec">API #7 요청 전송</button>
+    </form>
+    <div class="result-box">
+      <div class="result-header">
+        <span id="api7_status" class="status-badge status-200">READY</span>
+        <span id="api7_time">0 ms</span>
+      </div>
+      <pre id="api7_result">// API #7 결과가 여기에 표시됩니다...</pre>
+    </div>
+  </div>
+
   <script>
     const API_BASE = window.location.origin;
 
@@ -381,6 +461,8 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
       document.getElementById("api3_dong").value = code;
       document.getElementById("api4_dong").value = code;
       document.getElementById("api5_dong").value = code;
+      document.getElementById("api6_dong").value = code;
+      document.getElementById("api7_dong").value = code;
     }
 
     async function executeFetch(url, statusId, timeId, resultId) {
@@ -498,6 +580,36 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
 
       const url = `${API_BASE}/developments?${params.toString()}`;
       executeFetch(url, "api5_status", "api5_time", "api5_result");
+    }
+
+    function callApi6() {
+      const dong = document.getElementById("api6_dong").value.trim();
+      const bldtype = document.getElementById("api6_bldtype").value.trim();
+      const bldname = document.getElementById("api6_bldname").value.trim();
+      const page = document.getElementById("api6_page").value || 1;
+      const size = document.getElementById("api6_size").value || 5;
+
+      const params = new URLSearchParams({ page, size });
+      if (dong) params.append("admin_dong_code", dong);
+      if (bldtype) params.append("building_type", bldtype);
+      if (bldname) params.append("building_name", bldname);
+
+      const url = `${API_BASE}/buildings?${params.toString()}`;
+      executeFetch(url, "api6_status", "api6_time", "api6_result");
+    }
+
+    function callApi7() {
+      const pnu = document.getElementById("api7_pnu").value.trim();
+      const bldname = document.getElementById("api7_bldname").value.trim();
+      const dong = document.getElementById("api7_dong").value.trim();
+
+      const params = new URLSearchParams();
+      if (pnu) params.append("pnu", pnu);
+      if (bldname) params.append("building_name", bldname);
+      if (dong) params.append("admin_dong_code", dong);
+
+      const url = `${API_BASE}/buildings/unit-types?${params.toString()}`;
+      executeFetch(url, "api7_status", "api7_time", "api7_result");
     }
 
     window.onload = () => {

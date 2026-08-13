@@ -2,11 +2,19 @@ from datetime import date
 import math
 from typing import Dict, List, Optional
 import asyncpg
+from fastapi import HTTPException, status
+
 from app.repositories.transaction_repository import (
     TransactionRepository,
     normalize_building_type_code,
 )
 from app.schemas.transaction import (
+    BuildingItemDTO,
+    BuildingListData,
+    BuildingListResponse,
+    BuildingUnitsData,
+    BuildingUnitsResponse,
+    BuildingWithUnitsDTO,
     DevStageItemDTO,
     DevelopmentItemDTO,
     DevelopmentListData,
@@ -23,6 +31,7 @@ from app.schemas.transaction import (
     TradeListResponse,
     TransactionCountData,
     TransactionCountResponse,
+    UnitTypeItemDTO,
 )
 
 
@@ -453,4 +462,137 @@ class TransactionService:
             status=200,
             message="SUCCESS",
             data=DevelopmentListData(pagination=pagination, items=items)
+        )
+
+    @classmethod
+    async def get_buildings_list(
+        cls,
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        raw_bld_types: Optional[List[str]],
+        building_name: Optional[str],
+        page: int = 1,
+        size: int = 20
+    ) -> BuildingListResponse:
+        size = min(max(size, 1), 100)
+        page = max(page, 1)
+        offset = (page - 1) * size
+
+        bld_types = None
+        if raw_bld_types:
+            bld_types = []
+            for b in raw_bld_types:
+                for sub in b.split(","):
+                    sub_clean = sub.strip()
+                    if sub_clean:
+                        bld_types.append(sub_clean)
+
+        total_elements, rows = await TransactionRepository.get_buildings_list(
+            conn, admin_dong_code, bld_types, building_name, offset, size
+        )
+
+        items = []
+        for r in rows:
+            u_date = r.get("use_approval_date")
+            u_str = u_date.isoformat() if u_date else None
+            b_year = u_date.year if u_date else None
+
+            items.append(
+                BuildingItemDTO(
+                    pnu=r.get("pnu") or "",
+                    buildingName=r.get("building_name"),
+                    buildingType=normalize_building_type_code(r.get("building_type")),
+                    adminDongCode=r.get("admin_dong_code"),
+                    adminDongName=r.get("admin_dong_name"),
+                    legalDongCode=r.get("legal_dong_code"),
+                    legalDongName=r.get("legal_dong_name"),
+                    jibunAddress=r.get("jibun_address"),
+                    jibun=r.get("jibun"),
+                    totalHouseholds=r.get("total_households"),
+                    totalParking=r.get("total_parking"),
+                    useApprovalDate=u_str,
+                    buildYear=b_year
+                )
+            )
+
+        total_pages = math.ceil(total_elements / size) if total_elements > 0 else 0
+        pagination = PaginationDTO(
+            page=page,
+            size=size,
+            totalElements=total_elements,
+            totalPages=total_pages,
+            hasNext=page < total_pages,
+            hasPrevious=page > 1
+        )
+
+        return BuildingListResponse(
+            status=200,
+            message="SUCCESS",
+            data=BuildingListData(pagination=pagination, items=items)
+        )
+
+    @classmethod
+    async def get_building_unit_types(
+        cls,
+        conn: asyncpg.Connection,
+        pnu: Optional[str],
+        building_name: Optional[str],
+        admin_dong_code: Optional[str]
+    ) -> BuildingUnitsResponse:
+        if not pnu and not building_name and not admin_dong_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one search parameter (pnu, building_name, admin_dong_code) is required."
+            )
+
+        rows = await TransactionRepository.get_building_unit_types(
+            conn, pnu, building_name, admin_dong_code
+        )
+
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="UNIT_TYPES_NOT_FOUND: 평형 정보를 제공할 수 없거나 해당 건축물의 평형 상세 정보가 존재하지 않습니다."
+            )
+
+        grouped: Dict[str, Dict[str, Any]] = {}
+        unit_seen: Dict[str, set] = {}
+
+        for r in rows:
+            p = r["pnu"]
+            if p not in grouped:
+                u_date = r.get("use_approval_date")
+                grouped[p] = {
+                    "pnu": p,
+                    "buildingName": r.get("building_name"),
+                    "buildingType": normalize_building_type_code(r.get("building_type")),
+                    "adminDongCode": r.get("admin_dong_code"),
+                    "adminDongName": r.get("admin_dong_name"),
+                    "legalDongCode": r.get("legal_dong_code"),
+                    "legalDongName": r.get("legal_dong_name"),
+                    "jibunAddress": r.get("jibun_address"),
+                    "totalHouseholds": r.get("total_households"),
+                    "totalParking": r.get("total_parking"),
+                    "useApprovalDate": u_date.isoformat() if u_date else None,
+                    "unitTypes": []
+                }
+                unit_seen[p] = set()
+
+            u_id = r.get("unit_id")
+            if u_id and u_id not in unit_seen[p]:
+                unit_seen[p].add(u_id)
+                grouped[p]["unitTypes"].append(
+                    UnitTypeItemDTO(
+                        id=u_id,
+                        exclusiveArea=float(r["exclusive_area"]) if r["exclusive_area"] is not None else 0.0,
+                        pyungType=r.get("pyung_type") or 0,
+                        householdCount=r.get("household_count") or 0
+                    )
+                )
+
+        bld_items = [BuildingWithUnitsDTO(**v) for v in grouped.values()]
+        return BuildingUnitsResponse(
+            status=200,
+            message="SUCCESS",
+            data=BuildingUnitsData(totalBuildings=len(bld_items), items=bld_items)
         )
