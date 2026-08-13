@@ -325,7 +325,7 @@ class FamilyMapService:
 
     async def search_apartments(self, query: Optional[str], limit: int) -> List[ApartmentSummary]:
         normalized_query = query.strip().lower() if query else ""
-        rows = await self.repository.search_apartments(query, 50 if normalized_query else min(limit, 50))
+        rows = await self.repository.search_apartments(query, limit)
         apartments = [normalize_apartment(row) for row in rows]
         if normalized_query:
             apartments = [
