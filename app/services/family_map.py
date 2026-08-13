@@ -15,7 +15,7 @@ from app.schemas.family_map import (
 )
 
 EARTH_RADIUS_M = 6371000
-DEFAULT_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk"]
+DEFAULT_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk", "park", "hospital"]
 MAX_RADIUS_M = 3000
 MAX_LIMIT_PER_SOURCE = 5000
 CROSSWALK_VISUAL_MERGE_DISTANCE_M = 50
@@ -34,6 +34,7 @@ class SourceConfig:
     address_column: Optional[str] = None
     geometry_column: Optional[str] = None
     metadata_columns: tuple[str, ...] = ()
+    filters: Optional[Dict[str, str]] = None
 
     @property
     def compact_select(self) -> str:
@@ -84,6 +85,31 @@ SOURCE_CONFIGS = [
         lat_column="latitude",
         lng_column="longitude",
         metadata_columns=("establishment_type", "phone_number", "homepage_url", "established_date"),
+    ),
+    SourceConfig(
+        category="park",
+        source="major_parks",
+        table="major_parks_yangcheon_processed",
+        select="source_row_number,display_name,park_name,address,latitude,longitude,area_square_meters,main_facilities,main_plants,phone_number,detail_url",
+        id_column="source_row_number",
+        name_column="display_name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("park_name", "area_square_meters", "main_facilities", "main_plants", "phone_number", "detail_url"),
+    ),
+    SourceConfig(
+        category="hospital",
+        source="environment_medical",
+        table="environment_feature",
+        select="feature_id,name,address,latitude,longitude,feature_type,service_types,attributes,source_dataset_id",
+        id_column="feature_id",
+        name_column="name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("feature_type", "service_types", "attributes", "source_dataset_id"),
+        filters={"axis": "eq.medical", "map_visible": "eq.true"},
     ),
     SourceConfig(
         category="crosswalk",
@@ -436,6 +462,7 @@ class FamilyMapService:
                 ne_lat=ne_lat,
                 ne_lng=ne_lng,
                 limit=limit,
+                filters=config.filters,
             )
             for config in selected_configs
         ]

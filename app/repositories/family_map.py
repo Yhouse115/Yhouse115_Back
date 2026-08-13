@@ -112,6 +112,7 @@ class FamilyMapRepository:
         ne_lat: float,
         ne_lng: float,
         limit: int,
+        filters: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, Any]]:
         params: List[Tuple[str, Any]] = [
             ("select", select),
@@ -121,4 +122,6 @@ class FamilyMapRepository:
             (lng_column, f"lte.{ne_lng}"),
             ("limit", str(limit)),
         ]
+        if filters:
+            params.extend(filters.items())
         return await self._get(table, params)
