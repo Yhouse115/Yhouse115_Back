@@ -3,6 +3,19 @@ from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 
 
+def get_db_house_type_list(building_type: str) -> List[str]:
+    v = str(building_type).strip().upper()
+    if v in ("APT", "아파트"):
+        return ["APT", "아파트"]
+    elif v in ("OFFICETEL", "오피스텔"):
+        return ["OFFICETEL", "오피스텔"]
+    elif v in ("TOWNHOUSE", "연립다세대", "연립·다세대", "연립/다세대", "연립", "다세대", "빌라"):
+        return ["TOWNHOUSE", "연립다세대", "연립·다세대", "연립/다세대", "연립", "다세대", "빌라"]
+    elif v in ("DETACHED", "단독다가구", "단독/다가구", "단독", "다가구"):
+        return ["DETACHED", "단독다가구", "단독/다가구", "단독", "다가구"]
+    return [building_type]
+
+
 def normalize_building_type_code(house_type_str: Optional[str]) -> str:
     if not house_type_str:
         return "APT"
@@ -95,3 +108,116 @@ class TransactionRepository:
         rent_rows = await conn.fetch(rent_query, admin_dong_code, period_start, period_end)
 
         return [dict(r) for r in trade_rows], [dict(r) for r in rent_rows]
+
+    @staticmethod
+    async def get_trades_list(
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        period_start: date,
+        period_end: date,
+        building_types: Optional[List[str]],
+        apt_name: Optional[str],
+        min_deal_amount: Optional[int],
+        max_deal_amount: Optional[int],
+        min_excl_area: Optional[float],
+        max_excl_area: Optional[float],
+        offset: int,
+        limit: int,
+        sort_col: str = "deal_date",
+        sort_dir: str = "DESC"
+    ) -> Tuple[int, List[Dict[str, Any]]]:
+        params = [period_start, period_end]
+        param_idx = 3
+
+        where_clauses = [
+            "t.deal_date >= $1",
+            "t.deal_date <= $2"
+        ]
+
+        if admin_dong_code:
+            where_clauses.append(f"(t.admin_dong_code = ${param_idx} OR COALESCE(b_exact.admin_dong_code, b_main.admin_dong_code) = ${param_idx})")
+            params.append(admin_dong_code)
+            param_idx += 1
+
+        if building_types:
+            expanded_types = []
+            for bt in building_types:
+                expanded_types.extend(get_db_house_type_list(bt))
+            where_clauses.append(f"t.house_type = ANY(${param_idx}::text[])")
+            params.append(expanded_types)
+            param_idx += 1
+
+        if apt_name:
+            where_clauses.append(f"t.apt_name ILIKE ${param_idx}")
+            params.append(f"%{apt_name}%")
+            param_idx += 1
+
+        if min_deal_amount is not None:
+            where_clauses.append(f"t.deal_amount >= ${param_idx}")
+            params.append(min_deal_amount)
+            param_idx += 1
+
+        if max_deal_amount is not None:
+            where_clauses.append(f"t.deal_amount <= ${param_idx}")
+            params.append(max_deal_amount)
+            param_idx += 1
+
+        if min_excl_area is not None:
+            where_clauses.append(f"t.excl_area >= ${param_idx}")
+            params.append(min_excl_area)
+            param_idx += 1
+
+        if max_excl_area is not None:
+            where_clauses.append(f"t.excl_area <= ${param_idx}")
+            params.append(max_excl_area)
+            param_idx += 1
+
+        where_sql = " AND ".join(where_clauses)
+
+        from_sql = """
+            FROM public.transaction_trades t
+            LEFT JOIN public.residential_buildings b_exact ON t.pnu = b_exact.pnu
+            LEFT JOIN public.residential_buildings b_main ON SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b_main.pnu, 1, 15) || '0000'
+        """
+
+        count_query = f"SELECT COUNT(*) {from_sql} WHERE {where_sql};"
+        total_count = await conn.fetchval(count_query, *params)
+
+        valid_sort_cols = {
+            "deal_date": "t.deal_date",
+            "deal_amount": "t.deal_amount",
+            "excl_area": "t.excl_area",
+            "price_per_m2": "t.price_per_m2",
+            "build_year": "t.build_year"
+        }
+        order_column = valid_sort_cols.get(sort_col.lower(), "t.deal_date")
+        order_direction = "DESC" if sort_dir.upper() == "DESC" else "ASC"
+
+        query = f"""
+            SELECT 
+                t.id,
+                t.pnu,
+                t.deal_date,
+                t.house_type,
+                t.apt_name,
+                COALESCE(t.admin_dong_code, b_exact.admin_dong_code, b_main.admin_dong_code) AS admin_dong_code,
+                COALESCE(t.admin_dong_name, b_exact.admin_dong_name, b_main.admin_dong_name) AS admin_dong_name,
+                COALESCE(t.legal_dong_code, b_exact.legal_dong_code, b_main.legal_dong_code) AS legal_dong_code,
+                COALESCE(t.legal_dong_name, b_exact.legal_dong_name, b_main.legal_dong_name) AS legal_dong_name,
+                COALESCE(t.jibun_address, b_exact.jibun_address, b_main.jibun_address) AS jibun_address,
+                COALESCE(t.jibun, b_exact.jibun, b_main.jibun) AS jibun,
+                t.floor,
+                t.excl_area,
+                t.deal_amount,
+                t.price_per_m2,
+                t.build_year,
+                t.cancel_deal_day
+            {from_sql}
+            WHERE {where_sql}
+            ORDER BY {order_column} {order_direction}, t.id DESC
+            OFFSET ${param_idx} LIMIT ${param_idx + 1};
+        """
+        params.extend([offset, limit])
+        rows = await conn.fetch(query, *params)
+
+        return total_count, [dict(r) for r in rows]

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from app.db.postgres import get_db_connection
 from app.schemas.transaction import (
     InventorySummaryResponse,
+    TradeListResponse,
     TransactionCountResponse,
 )
 from app.services.transaction_service import TransactionService
@@ -32,4 +33,26 @@ async def get_summary_transaction_count(
 ):
     return await TransactionService.get_transaction_counts(
         conn, admin_dong_code, period_start, period_end, transaction_type, building_type
+    )
+
+
+@router.get("/transactions/trades", response_model=TradeListResponse)
+async def get_trades_list(
+    admin_dong_code: Optional[str] = Query(None, description="관할 행정동 10자리 코드"),
+    period_start: date = Query(..., description="조회 기간 시작일 (YYYY-MM-DD)"),
+    period_end: date = Query(..., description="조회 기간 종료일 (YYYY-MM-DD)"),
+    building_type: Optional[List[str]] = Query(None, description="건축물 유형 (APT, TOWNHOUSE, OFFICETEL, DETACHED)"),
+    apt_name: Optional[str] = Query(None, description="단지명 / 건물명 검색어"),
+    min_deal_amount: Optional[int] = Query(None, description="최소 매매가 (단위: 만원)"),
+    max_deal_amount: Optional[int] = Query(None, description="최대 매매가 (단위: 만원)"),
+    min_excl_area: Optional[float] = Query(None, description="최소 전용면적 (m²)"),
+    max_excl_area: Optional[float] = Query(None, description="최대 전용면적 (m²)"),
+    page: int = Query(1, ge=1, description="요청 페이지 번호"),
+    size: int = Query(20, ge=1, le=100, description="페이지당 출력 건수"),
+    sort: str = Query("deal_date,desc", description="정렬 조건"),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_trades_list(
+        conn, admin_dong_code, period_start, period_end, building_type, apt_name,
+        min_deal_amount, max_deal_amount, min_excl_area, max_excl_area, page, size, sort
     )

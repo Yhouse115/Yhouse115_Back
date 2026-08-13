@@ -1,4 +1,5 @@
 from datetime import date
+import math
 from typing import Dict, List, Optional
 import asyncpg
 from app.repositories.transaction_repository import (
@@ -9,6 +10,10 @@ from app.schemas.transaction import (
     InventoryItemDTO,
     InventorySummaryResponse,
     MonthlyTransactionSeriesItem,
+    PaginationDTO,
+    TradeItemDTO,
+    TradeListData,
+    TradeListResponse,
     TransactionCountData,
     TransactionCountResponse,
 )
@@ -146,3 +151,91 @@ class TransactionService:
             series=series_items
         )
         return TransactionCountResponse(status=200, message="SUCCESS", data=data)
+
+    @classmethod
+    async def get_trades_list(
+        cls,
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        period_start: date,
+        period_end: date,
+        raw_bld_types: Optional[List[str]],
+        apt_name: Optional[str],
+        min_deal_amount: Optional[int],
+        max_deal_amount: Optional[int],
+        min_excl_area: Optional[float],
+        max_excl_area: Optional[float],
+        page: int = 1,
+        size: int = 20,
+        sort: str = "deal_date,desc"
+    ) -> TradeListResponse:
+        size = min(max(size, 1), 100)
+        page = max(page, 1)
+        offset = (page - 1) * size
+
+        sort_col, sort_dir = "deal_date", "DESC"
+        if "," in sort:
+            parts = sort.split(",")
+            sort_col, sort_dir = parts[0].strip(), parts[1].strip()
+
+        bld_types = None
+        if raw_bld_types:
+            bld_types = []
+            for b in raw_bld_types:
+                for sub in b.split(","):
+                    sub_clean = sub.strip()
+                    if sub_clean:
+                        bld_types.append(sub_clean)
+
+        total_elements, rows = await TransactionRepository.get_trades_list(
+            conn, admin_dong_code, period_start, period_end, bld_types,
+            apt_name, min_deal_amount, max_deal_amount, min_excl_area, max_excl_area,
+            offset, size, sort_col, sort_dir
+        )
+
+        items = []
+        for idx, r in enumerate(rows, start=1):
+            d_date = r.get("deal_date")
+            d_str = d_date.isoformat() if d_date else ""
+            d_nodash = d_str.replace("-", "")
+            pnu_val = r.get("pnu") or "0000000000000000000"
+            rec_id = r.get("id") or idx
+            trade_id = f"TR_{d_nodash}_{pnu_val}_{rec_id:02d}"
+
+            items.append(
+                TradeItemDTO(
+                    tradeId=trade_id,
+                    pnu=r.get("pnu"),
+                    dealDate=d_str,
+                    buildingType=normalize_building_type_code(r.get("house_type")),
+                    aptName=r.get("apt_name"),
+                    adminDongCode=r.get("admin_dong_code"),
+                    adminDongName=r.get("admin_dong_name"),
+                    legalDongCode=r.get("legal_dong_code"),
+                    legalDongName=r.get("legal_dong_name"),
+                    jibunAddress=r.get("jibun_address"),
+                    jibun=r.get("jibun"),
+                    floor=r.get("floor"),
+                    exclArea=float(r.get("excl_area")) if r.get("excl_area") is not None else None,
+                    dealAmount=r.get("deal_amount"),
+                    pricePerM2=float(r.get("price_per_m2")) if r.get("price_per_m2") is not None else None,
+                    buildYear=r.get("build_year"),
+                    cancelDealDay=r.get("cancel_deal_day")
+                )
+            )
+
+        total_pages = math.ceil(total_elements / size) if total_elements > 0 else 0
+        pagination = PaginationDTO(
+            page=page,
+            size=size,
+            totalElements=total_elements,
+            totalPages=total_pages,
+            hasNext=page < total_pages,
+            hasPrevious=page > 1
+        )
+
+        return TradeListResponse(
+            status=200,
+            message="SUCCESS",
+            data=TradeListData(pagination=pagination, items=items)
+        )

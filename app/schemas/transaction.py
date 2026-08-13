@@ -1,5 +1,15 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from pydantic import BaseModel
+
+
+# Standard Pagination Schema
+class PaginationDTO(BaseModel):
+    page: int
+    size: int
+    totalElements: int
+    totalPages: int
+    hasNext: bool
+    hasPrevious: bool
 
 
 # --- API #1: Inventory Summary (/summary/inventory) ---
@@ -19,7 +29,7 @@ class InventorySummaryResponse(BaseModel):
 class MonthlyTransactionSeriesItem(BaseModel):
     yearMonth: str
     totalCount: int
-    counts: Dict[str, Dict[str, int]]  # { "TRADE": { "APT": 61, ... }, "JEONSE": { ... } }
+    counts: Dict[str, Dict[str, int]]
 
 
 class TransactionCountData(BaseModel):
@@ -36,3 +46,35 @@ class TransactionCountResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: TransactionCountData
+
+
+# --- API #3: Trade List (/transactions/trades) ---
+class TradeItemDTO(BaseModel):
+    tradeId: str
+    pnu: Optional[str] = None
+    dealDate: Optional[str] = None
+    buildingType: Optional[str] = None
+    aptName: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    floor: Optional[int] = None
+    exclArea: Optional[float] = None
+    dealAmount: Optional[int] = None
+    pricePerM2: Optional[float] = None
+    buildYear: Optional[int] = None
+    cancelDealDay: Optional[str] = None
+
+
+class TradeListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[TradeItemDTO]
+
+
+class TradeListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: TradeListData
