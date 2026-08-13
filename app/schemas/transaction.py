@@ -1,0 +1,216 @@
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+
+
+# Standard Pagination Schema
+class PaginationDTO(BaseModel):
+    page: int
+    size: int
+    totalElements: int
+    totalPages: int
+    hasNext: bool
+    hasPrevious: bool
+
+
+# --- API #1: Inventory Summary (/summary/inventory) ---
+class InventoryItemDTO(BaseModel):
+    house_type: str
+    count: int
+
+
+class InventorySummaryResponse(BaseModel):
+    admin_dong_code: str
+    admin_dong_name: str
+    total_stock_count: int
+    items: List[InventoryItemDTO]
+
+
+# --- API #2: Transaction Count (/summary/transaction-count) ---
+class MonthlyTransactionSeriesItem(BaseModel):
+    yearMonth: str
+    totalCount: int
+    counts: Dict[str, Dict[str, int]]
+
+
+class TransactionCountData(BaseModel):
+    adminDongCode: str
+    adminDongName: str
+    periodStart: str
+    periodEnd: str
+    transactionTypes: List[str]
+    buildingTypes: List[str]
+    series: List[MonthlyTransactionSeriesItem]
+
+
+class TransactionCountResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: TransactionCountData
+
+
+# --- API #3: Trade List (/transactions/trades) ---
+class TradeItemDTO(BaseModel):
+    tradeId: str
+    pnu: Optional[str] = None
+    dealDate: Optional[str] = None
+    buildingType: Optional[str] = None
+    aptName: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    floor: Optional[int] = None
+    exclArea: Optional[float] = None
+    dealAmount: Optional[int] = None
+    pricePerM2: Optional[float] = None
+    buildYear: Optional[int] = None
+    cancelDealDay: Optional[str] = None
+
+
+class TradeListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[TradeItemDTO]
+
+
+class TradeListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: TradeListData
+
+
+# --- API #4: Rent List (/transactions/rents) ---
+class RentItemDTO(BaseModel):
+    rentId: str
+    pnu: Optional[str] = None
+    dealDate: Optional[str] = None
+    rentType: Optional[str] = None
+    buildingType: Optional[str] = None
+    aptName: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    floor: Optional[int] = None
+    exclArea: Optional[float] = None
+    deposit: Optional[int] = None
+    monthlyRent: Optional[int] = None
+    contractPeriod: Optional[str] = None
+    useRrRight: Optional[str] = None
+
+
+class RentListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[RentItemDTO]
+
+
+class RentListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: RentListData
+
+
+# --- API #5: Development History (/developments) ---
+class DevStageItemDTO(BaseModel):
+    stageCode: str
+    stageName: str
+    eventDate: Optional[str] = None
+    isCurrentStage: Optional[bool] = None
+    isCompleted: Optional[bool] = None
+    statusDetail: Optional[str] = None
+
+
+class DevelopmentItemDTO(BaseModel):
+    projectId: str
+    pnu: Optional[str] = None
+    projectName: str
+    completedAptName: Optional[str] = None
+    devType: Optional[str] = None
+    targetHouseholds: Optional[int] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    address: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    includedJibuns: List[str] = []
+    includedPnus: List[str] = []
+    includedApts: List[str] = []
+    currentStage: Optional[DevStageItemDTO] = None
+    history: List[DevStageItemDTO] = []
+
+
+class DevelopmentListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[DevelopmentItemDTO]
+
+
+class DevelopmentListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: DevelopmentListData
+
+
+# --- API #6: Buildings List (/buildings) ---
+class BuildingItemDTO(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    buildingType: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    totalHouseholds: Optional[int] = None
+    totalParking: Optional[int] = None
+    useApprovalDate: Optional[str] = None
+    buildYear: Optional[int] = None
+
+
+class BuildingListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[BuildingItemDTO]
+
+
+class BuildingListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: BuildingListData
+
+
+# --- API #7: Building Unit Types (/buildings/unit-types) ---
+class UnitTypeItemDTO(BaseModel):
+    id: int
+    exclusiveArea: float
+    pyungType: int
+    householdCount: int
+
+
+class BuildingWithUnitsDTO(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    buildingType: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    totalHouseholds: Optional[int] = None
+    totalParking: Optional[int] = None
+    useApprovalDate: Optional[str] = None
+    unitTypes: List[UnitTypeItemDTO] = []
+
+
+class BuildingUnitsData(BaseModel):
+    totalBuildings: int
+    items: List[BuildingWithUnitsDTO]
+
+
+class BuildingUnitsResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[BuildingUnitsData] = None
