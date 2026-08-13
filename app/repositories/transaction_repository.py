@@ -353,3 +353,78 @@ class TransactionRepository:
         rows = await conn.fetch(query, *params)
 
         return total_count, [dict(r) for r in rows]
+
+    @staticmethod
+    async def get_developments_list(
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        dev_type: Optional[str],
+        project_name: Optional[str],
+        stage_code: Optional[str],
+        is_completed: Optional[bool],
+        pnu: Optional[str],
+        offset: int,
+        limit: int
+    ) -> Tuple[int, List[Dict[str, Any]]]:
+        params = []
+        param_idx = 1
+        where_clauses = []
+
+        if admin_dong_code:
+            where_clauses.append(f"admin_dong_code = ${param_idx}")
+            params.append(admin_dong_code)
+            param_idx += 1
+
+        if dev_type and dev_type.upper() in ("REDEVELOPMENT", "RECONSTRUCTION", "재개발", "재건축"):
+            dt_str = "재개발" if dev_type.upper() in ("REDEVELOPMENT", "재개발") else "재건축"
+            where_clauses.append(f"dev_type = ${param_idx}")
+            params.append(dt_str)
+            param_idx += 1
+
+        if project_name:
+            where_clauses.append(f"project_name ILIKE ${param_idx}")
+            params.append(f"%{project_name}%")
+            param_idx += 1
+
+        if stage_code:
+            where_clauses.append(f"stage_code = ${param_idx}")
+            params.append(stage_code)
+            param_idx += 1
+
+        if is_completed is not None:
+            where_clauses.append(f"is_completed = ${param_idx}")
+            params.append(is_completed)
+            param_idx += 1
+
+        if pnu:
+            where_clauses.append(f"pnu = ${param_idx}")
+            params.append(pnu)
+            param_idx += 1
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        count_query = f"SELECT COUNT(DISTINCT COALESCE(pnu, project_name)) FROM public.history_developments {where_sql};"
+        total_projects = await conn.fetchval(count_query, *params)
+
+        project_keys_query = f"""
+            SELECT COALESCE(pnu, project_name) AS proj_key, MAX(id) as max_id
+            FROM public.history_developments
+            {where_sql}
+            GROUP BY COALESCE(pnu, project_name)
+            ORDER BY max_id DESC
+            OFFSET ${param_idx} LIMIT ${param_idx + 1};
+        """
+        params.extend([offset, limit])
+        proj_rows = await conn.fetch(project_keys_query, *params)
+        proj_keys = [r['proj_key'] for r in proj_rows]
+
+        if not proj_keys:
+            return total_projects, []
+
+        records_query = """
+            SELECT * FROM public.history_developments
+            WHERE COALESCE(pnu, project_name) = ANY($1::text[])
+            ORDER BY id ASC;
+        """
+        all_records = await conn.fetch(records_query, proj_keys)
+        return total_projects, [dict(r) for r in all_records]

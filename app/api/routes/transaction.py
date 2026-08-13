@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.db.postgres import get_db_connection
 from app.schemas.transaction import (
+    DevelopmentListResponse,
     InventorySummaryResponse,
     RentListResponse,
     TradeListResponse,
@@ -82,4 +83,21 @@ async def get_rents_list(
         conn, admin_dong_code, period_start, period_end, rent_type, building_type, apt_name,
         min_deposit, max_deposit, min_monthly_rent, max_monthly_rent,
         min_excl_area, max_excl_area, page, size, sort
+    )
+
+
+@router.get("/developments", response_model=DevelopmentListResponse)
+async def get_developments_list(
+    admin_dong_code: Optional[str] = Query(None, description="관할 행정동 10자리 코드"),
+    dev_type: Optional[str] = Query(None, description="정비사업 종류 (REDEVELOPMENT, RECONSTRUCTION)"),
+    project_name: Optional[str] = Query(None, description="정비사업 구역명 검색어"),
+    stage_code: Optional[str] = Query(None, description="특정 달성 단계 코드 (STAGE_1 ~ STAGE_6)"),
+    is_completed: Optional[bool] = Query(None, description="사업 완료(준공·입주) 여부"),
+    pnu: Optional[str] = Query(None, description="정비구역 대표 PNU 19자리"),
+    page: int = Query(1, ge=1, description="요청 페이지 번호"),
+    size: int = Query(20, ge=1, le=100, description="페이지당 출력 건수"),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_developments_list(
+        conn, admin_dong_code, dev_type, project_name, stage_code, is_completed, pnu, page, size
     )

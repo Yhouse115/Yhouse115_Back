@@ -7,6 +7,10 @@ from app.repositories.transaction_repository import (
     normalize_building_type_code,
 )
 from app.schemas.transaction import (
+    DevStageItemDTO,
+    DevelopmentItemDTO,
+    DevelopmentListData,
+    DevelopmentListResponse,
     InventoryItemDTO,
     InventorySummaryResponse,
     MonthlyTransactionSeriesItem,
@@ -20,6 +24,20 @@ from app.schemas.transaction import (
     TransactionCountData,
     TransactionCountResponse,
 )
+
+
+def parse_comma_or_json_list(val: Optional[str]) -> List[str]:
+    if not val:
+        return []
+    val_str = str(val).strip()
+    if val_str.startswith("[") and val_str.endswith("]"):
+        import json
+        try:
+            parsed = json.loads(val_str)
+            return [str(x).strip() for x in parsed if str(x).strip()]
+        except Exception:
+            pass
+    return [x.strip() for x in val_str.split(",") if x.strip()]
 
 
 def generate_year_month_sequence(start_date: date, end_date: date) -> List[str]:
@@ -336,4 +354,103 @@ class TransactionService:
             status=200,
             message="SUCCESS",
             data=RentListData(pagination=pagination, items=items)
+        )
+
+    @classmethod
+    async def get_developments_list(
+        cls,
+        conn: asyncpg.Connection,
+        admin_dong_code: Optional[str],
+        dev_type: Optional[str],
+        project_name: Optional[str],
+        stage_code: Optional[str],
+        is_completed: Optional[bool],
+        pnu: Optional[str],
+        page: int = 1,
+        size: int = 20
+    ) -> DevelopmentListResponse:
+        size = min(max(size, 1), 100)
+        page = max(page, 1)
+        offset = (page - 1) * size
+
+        total_elements, rows = await TransactionRepository.get_developments_list(
+            conn, admin_dong_code, dev_type, project_name, stage_code, is_completed, pnu, offset, size
+        )
+
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+        for r in rows:
+            pkey = r.get("pnu") or r.get("project_name")
+            if pkey not in grouped:
+                grouped[pkey] = []
+            grouped[pkey].append(r)
+
+        items = []
+        for pkey, p_rows in grouped.items():
+            base_r = p_rows[0]
+            rep_pnu = base_r.get("pnu") or ""
+            proj_id = f"DEV_{rep_pnu}" if rep_pnu else f"DEV_{abs(hash(pkey))}"
+
+            curr_stage_dto = None
+            history_dtos = []
+
+            for r in p_rows:
+                st_code = r.get("stage_code") or "STAGE_1"
+                st_name = r.get("stage_name") or ""
+                ev_date = r.get("event_date").isoformat() if r.get("event_date") else None
+                st_detail = r.get("status_detail") or ""
+                is_curr = r.get("is_current_stage", False)
+                is_comp = r.get("is_completed", False)
+
+                stage_dto = DevStageItemDTO(
+                    stageCode=st_code,
+                    stageName=st_name,
+                    eventDate=ev_date,
+                    isCurrentStage=is_curr,
+                    isCompleted=is_comp,
+                    statusDetail=st_detail
+                )
+                history_dtos.append(stage_dto)
+
+                if is_curr:
+                    curr_stage_dto = stage_dto
+
+            if not curr_stage_dto and history_dtos:
+                curr_stage_dto = history_dtos[-1]
+
+            items.append(
+                DevelopmentItemDTO(
+                    projectId=proj_id,
+                    pnu=base_r.get("pnu"),
+                    projectName=base_r.get("project_name") or "",
+                    completedAptName=base_r.get("completed_apt_name"),
+                    devType=base_r.get("dev_type"),
+                    targetHouseholds=base_r.get("target_households"),
+                    adminDongCode=base_r.get("admin_dong_code"),
+                    adminDongName=base_r.get("admin_dong_name"),
+                    legalDongCode=base_r.get("legal_dong_code"),
+                    legalDongName=base_r.get("legal_dong_name"),
+                    address=base_r.get("address"),
+                    jibunAddress=base_r.get("jibun_address"),
+                    includedJibuns=parse_comma_or_json_list(base_r.get("included_jibuns")),
+                    includedPnus=parse_comma_or_json_list(base_r.get("included_pnus")),
+                    includedApts=parse_comma_or_json_list(base_r.get("included_apts")),
+                    currentStage=curr_stage_dto,
+                    history=history_dtos
+                )
+            )
+
+        total_pages = math.ceil(total_elements / size) if total_elements > 0 else 0
+        pagination = PaginationDTO(
+            page=page,
+            size=size,
+            totalElements=total_elements,
+            totalPages=total_pages,
+            hasNext=page < total_pages,
+            hasPrevious=page > 1
+        )
+
+        return DevelopmentListResponse(
+            status=200,
+            message="SUCCESS",
+            data=DevelopmentListData(pagination=pagination, items=items)
         )

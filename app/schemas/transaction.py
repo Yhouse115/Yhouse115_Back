@@ -111,3 +111,44 @@ class RentListResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: RentListData
+
+
+# --- API #5: Development History (/developments) ---
+class DevStageItemDTO(BaseModel):
+    stageCode: str
+    stageName: str
+    eventDate: Optional[str] = None
+    isCurrentStage: Optional[bool] = None
+    isCompleted: Optional[bool] = None
+    statusDetail: Optional[str] = None
+
+
+class DevelopmentItemDTO(BaseModel):
+    projectId: str
+    pnu: Optional[str] = None
+    projectName: str
+    completedAptName: Optional[str] = None
+    devType: Optional[str] = None
+    targetHouseholds: Optional[int] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    address: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    includedJibuns: List[str] = []
+    includedPnus: List[str] = []
+    includedApts: List[str] = []
+    currentStage: Optional[DevStageItemDTO] = None
+    history: List[DevStageItemDTO] = []
+
+
+class DevelopmentListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[DevelopmentItemDTO]
+
+
+class DevelopmentListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: DevelopmentListData
