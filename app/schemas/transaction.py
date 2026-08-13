@@ -154,6 +154,14 @@ class DevelopmentListResponse(BaseModel):
     data: DevelopmentListData
 
 
+# --- API #10: Development Detail (/developments/{project_id}) ---
+class DevelopmentDetailResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[DevelopmentItemDTO] = None
+
+
+
 # --- API #6: Buildings List (/buildings) ---
 class BuildingItemDTO(BaseModel):
     pnu: str
@@ -214,3 +222,165 @@ class BuildingUnitsResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: Optional[BuildingUnitsData] = None
+
+
+# --- API #8: Building Detail Summary (/buildings/{pnu}/summary) ---
+class BuildingInfoSummaryDTO(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    buildingType: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    totalHouseholds: Optional[int] = None
+    totalParking: Optional[int] = None
+    parkingPerHousehold: Optional[float] = None
+    useApprovalDate: Optional[str] = None
+    buildYear: Optional[int] = None
+    buildingAge: Optional[int] = None
+
+
+class BuildingUnitTypeSummaryDTO(BaseModel):
+    exclusiveArea: float
+    pyungType: int
+    householdCount: int
+    recentTradePrice: Optional[int] = None
+    priceChangeRate: Optional[float] = None
+    pricePerPyeong: Optional[float] = None
+    pricePerM2: Optional[float] = None
+    maxTradePrice: Optional[int] = None
+    minTradePrice: Optional[int] = None
+    recentRentDeposit: Optional[int] = None
+    jeonseRatio: Optional[float] = None
+
+
+class BuildingPriceTrendItemDTO(BaseModel):
+    yearMonth: str
+    avgTradeAmount: Optional[int] = None
+    tradeCount: int = 0
+    avgRentDeposit: Optional[int] = None
+    rentCount: int = 0
+
+
+class BuildingRecentTradeItemDTO(BaseModel):
+    id: str
+    tradeType: str
+    dealDate: str
+    floor: Optional[int] = None
+    exclArea: float
+    dealAmount: Optional[int] = None
+    monthlyRent: Optional[int] = None
+    pricePerM2: Optional[float] = None
+
+
+class BuildingDetailSummaryData(BaseModel):
+    buildingInfo: BuildingInfoSummaryDTO
+    unitTypes: List[BuildingUnitTypeSummaryDTO] = []
+    recentTrades: List[BuildingRecentTradeItemDTO] = []
+    priceTrends: List[BuildingPriceTrendItemDTO] = []
+
+
+class BuildingDetailSummaryResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[BuildingDetailSummaryData] = None
+
+
+# --- API #9: Dong & Adjacent Dong Trends Summary (/summary/trends) ---
+class DongUnitSizeStatDTO(BaseModel):
+    category: str
+    exclusiveAreaRange: str
+    avgTradePrice: Optional[int] = None
+    priceChangeRate: Optional[float] = None
+    medianPyeongPrice: Optional[float] = None
+    medianPrice: Optional[int] = None
+    minPrice: Optional[int] = None
+    maxPrice: Optional[int] = None
+    tradeCount: int = 0
+
+
+class DongBaseStatsDTO(BaseModel):
+    adminDongCode: str
+    adminDongName: str
+    avgTradePrice: Optional[int] = None
+    medianTradePrice: Optional[int] = None
+    priceChangeRate: Optional[float] = None
+    medianPyeongPrice: Optional[float] = None
+    avgRentDeposit: Optional[int] = None
+    medianRentDeposit: Optional[int] = None
+    rentChangeRate: Optional[float] = None
+    medianRentPyeongPrice: Optional[float] = None
+    jeonseRatio: Optional[float] = None
+    unitSizeStats: List[DongUnitSizeStatDTO] = []
+
+
+class AdjacentDongStatDTO(BaseModel):
+    adminDongCode: str
+    adminDongName: str
+    avgTradePrice: Optional[int] = None
+    medianPyeongPrice: Optional[float] = None
+    priceChangeRate: Optional[float] = None
+    avgRentDeposit: Optional[int] = None
+    medianRentPyeongPrice: Optional[float] = None
+    tradeCount: int = 0
+    rentCount: int = 0
+
+
+class DongTrendsSummaryData(BaseModel):
+    adminDongCode: str
+    adminDongName: str
+    periodMonths: int
+    baseDongStats: DongBaseStatsDTO
+    adjacentDongs: List[AdjacentDongStatDTO] = []
+    adjacentAvgPyeongPrice: Optional[float] = None
+    guAvgPyeongPrice: Optional[float] = None
+    guPriceChangeRate: Optional[float] = None
+
+
+class DongTrendsSummaryResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[DongTrendsSummaryData] = None
+
+
+# --- API #11: Region 1:1 Comparison Summary (/summary/region-comparison) ---
+class RegionStatDTO(BaseModel):
+    adminDongCode: str
+    adminDongName: str
+    avgTradePrice: Optional[int] = None
+    medianTradePrice: Optional[int] = None
+    medianPyeongPrice: Optional[float] = None
+    priceChangeRate: Optional[float] = None
+    avgRentDeposit: Optional[int] = None
+    medianRentDeposit: Optional[int] = None
+    medianRentPyeongPrice: Optional[float] = None
+    rentChangeRate: Optional[float] = None
+    jeonseRatio: Optional[float] = None
+    tradeCount: int = 0
+    rentCount: int = 0
+
+
+class RegionComparisonSummaryDTO(BaseModel):
+    priceDifference: Optional[int] = None
+    pyeongPriceDifference: Optional[float] = None
+    higherPyeongPriceRegion: str
+    jeonseRatioDifference: Optional[float] = None
+
+
+class RegionComparisonData(BaseModel):
+    periodMonths: int
+    baseRegion: RegionStatDTO
+    targetRegion: RegionStatDTO
+    comparisonSummary: RegionComparisonSummaryDTO
+
+
+class RegionComparisonResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: Optional[RegionComparisonData] = None
+
+
+
