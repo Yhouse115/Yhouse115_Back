@@ -4,6 +4,48 @@
 
 ---
 
+## Apartment Environment Map MVP
+
+The current map scope is Yangcheon-gu. Apartment identifiers are `CX-*`
+`complex_id` values from `apartment_complex`, the map-serving apartment
+master. KREB tables remain raw/reference inputs. The API reads pre-computed
+walking results from serving tables; it does not calculate route distance from
+feature coordinates on a request.
+
+### `GET /api/v1/map/complexes?district=yangcheon`
+
+Returns apartment markers for the current map scope. `district=yangcheon` is
+the only supported value until serving data is loaded for another district.
+
+### `GET /api/v1/complexes/{complexId}/environment`
+
+Returns exactly five cards in this display order:
+
+1. `transport` — 교통
+2. `parks_play` — 공원·놀이
+3. `medical` — 의료·약국
+4. `education_care` — 교육·돌봄
+5. `convenience` — 생활편의
+
+The server supplies stored walking facts and a display-ready headline. Clients
+must not calculate distance, walking time, or facility counts themselves.
+
+The convenience source facilities are loaded, including convenience stores and
+marts. Once the corresponding pre-computed access and summary rows are loaded,
+the card is `available`; it must not be represented as zero facilities.
+
+### `GET /api/v1/complexes/{complexId}/environment/features?axis=medical&limit=20`
+
+Returns accessible facilities for one of the five card axes: `transport`,
+`parks_play`, `medical`, `education_care`, or `convenience`. Results are
+ordered by walking time, walking distance, and feature ID. Walking distance,
+walking time, and a `500m` claim are available only for a
+`walking_network` distance method.
+
+Safety facilities are retained in `environment_feature` with `axis=safety`
+for future map use. They are not part of the five-card summary and are not yet
+exposed by this endpoint.
+
 ## 📌 주요 REST API 목록 (API #1 ~ API #7)
 
 ### 1. `GET /summary/inventory`
