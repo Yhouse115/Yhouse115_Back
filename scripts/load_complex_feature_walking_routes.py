@@ -70,6 +70,58 @@ def parse_calculated_at(value: str) -> str:
         raise RouteInputError("calculated_at must be an ISO-8601 timestamp.") from exc
 
 
+def parse_route_crossing_events(value: Any, *, feature_index: int) -> list[dict[str, Any]] | None:
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        raise RouteInputError(f"Feature {feature_index}: route_crossing_events must be an array.")
+    events: list[dict[str, Any]] = []
+    seen_link_ids: set[str] = set()
+    seen_signal_ids: set[str] = set()
+    for event_index, event in enumerate(value):
+        if not isinstance(event, Mapping):
+            raise RouteInputError(f"Feature {feature_index}: route_crossing_events[{event_index}] must be an object.")
+        link_id = str(event.get("crosswalk_link_id") or "").strip()
+        try:
+            longitude = float(event["longitude"])
+            latitude = float(event["latitude"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RouteInputError(f"Feature {feature_index}: crossing event coordinate is invalid.") from exc
+        signals_value = event.get("pedestrian_signals", [])
+        if not link_id or link_id in seen_link_ids or not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
+            raise RouteInputError(f"Feature {feature_index}: crossing event is invalid or duplicated.")
+        if not isinstance(signals_value, list):
+            raise RouteInputError(f"Feature {feature_index}: pedestrian_signals must be an array.")
+        signals: list[dict[str, Any]] = []
+        signal_ids: list[str] = []
+        for signal_index, signal in enumerate(signals_value):
+            if not isinstance(signal, Mapping):
+                raise RouteInputError(f"Feature {feature_index}: crossing-event signal {signal_index} must be an object.")
+            signal_id = str(signal.get("id") or "").strip()
+            try:
+                signal_longitude = float(signal["longitude"])
+                signal_latitude = float(signal["latitude"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RouteInputError(f"Feature {feature_index}: crossing-event signal coordinate is invalid.") from exc
+            if not signal_id or not -180 <= signal_longitude <= 180 or not -90 <= signal_latitude <= 90:
+                raise RouteInputError(f"Feature {feature_index}: crossing-event signal is invalid.")
+            signal_ids.append(signal_id)
+            signals.append({"id": signal_id, "longitude": signal_longitude, "latitude": signal_latitude})
+        if len(signal_ids) != len(set(signal_ids)):
+            raise RouteInputError(f"Feature {feature_index}: crossing event signal IDs must be unique.")
+        if seen_signal_ids.intersection(signal_ids):
+            raise RouteInputError(f"Feature {feature_index}: a pedestrian signal can belong to only one crossing event.")
+        seen_link_ids.add(link_id)
+        seen_signal_ids.update(signal_ids)
+        events.append({
+            "crosswalk_link_id": link_id,
+            "longitude": longitude,
+            "latitude": latitude,
+            "pedestrian_signals": signals,
+        })
+    return events
+
+
 def load_json_object(path: Path) -> Mapping[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -130,6 +182,19 @@ def route_rows_from_geojson(
         if key in seen_keys:
             raise RouteInputError(f"Feature {index}: duplicate route key {key!r}.")
         seen_keys.add(key)
+        crossing_events = parse_route_crossing_events(properties.get("route_crossing_events"), feature_index=index)
+        crosswalk_count = parse_optional_nonnegative_int(
+            properties.get("crosswalk_count"), field="crosswalk_count", feature_index=index
+        )
+        pedestrian_signal_count = parse_optional_nonnegative_int(
+            properties.get("pedestrian_signal_count"), field="pedestrian_signal_count", feature_index=index
+        )
+        if crossing_events is not None:
+            event_signal_count = sum(len(event["pedestrian_signals"]) for event in crossing_events)
+            if crosswalk_count != len(crossing_events) or pedestrian_signal_count != event_signal_count:
+                raise RouteInputError(
+                    f"Feature {index}: crossing-event counts must equal crosswalk_count and pedestrian_signal_count."
+                )
         rows.append(
             {
                 "complex_id": complex_id,
@@ -155,15 +220,12 @@ def route_rows_from_geojson(
                     field="safety_match_threshold_m",
                     feature_index=index,
                 ),
-                "crosswalk_count": parse_optional_nonnegative_int(
-                    properties.get("crosswalk_count"), field="crosswalk_count", feature_index=index
-                ),
-                "pedestrian_signal_count": parse_optional_nonnegative_int(
-                    properties.get("pedestrian_signal_count"), field="pedestrian_signal_count", feature_index=index
-                ),
+                "crosswalk_count": crosswalk_count,
+                "pedestrian_signal_count": pedestrian_signal_count,
                 "cctv_location_count": parse_optional_nonnegative_int(
                     properties.get("cctv_location_count"), field="cctv_location_count", feature_index=index
                 ),
+                "route_crossing_events": crossing_events,
                 "safety_calculation_version": properties.get("safety_calculation_version") or None,
                 "safety_calculated_at": (
                     parse_calculated_at(str(properties["safety_calculated_at"]))

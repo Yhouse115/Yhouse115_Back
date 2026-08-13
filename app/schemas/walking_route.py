@@ -7,6 +7,21 @@ from pydantic import Field
 from app.schemas.environment import ApiModel
 
 
+class WalkingRoutePedestrianSignal(ApiModel):
+    id: str
+    longitude: float
+    latitude: float
+
+
+class WalkingRouteCrossingEvent(ApiModel):
+    """One crosswalk link genuinely traversed by a stored walking route."""
+
+    crosswalk_link_id: str = Field(serialization_alias="crosswalkLinkId")
+    longitude: float
+    latitude: float
+    pedestrian_signals: list[WalkingRoutePedestrianSignal] = Field(serialization_alias="pedestrianSignals")
+
+
 class WalkingRouteResponse(ApiModel):
     """A pre-computed, render-ready route between one complex and one feature."""
 
@@ -22,3 +37,4 @@ class WalkingRouteResponse(ApiModel):
     crosswalk_count: int | None = Field(default=None, serialization_alias="crosswalkCount")
     pedestrian_signal_count: int | None = Field(default=None, serialization_alias="pedestrianSignalCount")
     cctv_location_count: int | None = Field(default=None, serialization_alias="cctvLocationCount")
+    crossing_events: list[WalkingRouteCrossingEvent] | None = Field(default=None, serialization_alias="crossingEvents")
