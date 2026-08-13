@@ -37,6 +37,11 @@ the following normalized serving tables instead:
 `kreb_apt_complex_basic_20250918_yangcheon` table remains a raw/reference
 source and is not used as the environment API identifier.
 
+The nationwide `kreb_apt_complex_basic_20250918` import is intentionally not
+retained in the hosted database. The product scope is Yangcheon; its geocoded
+KREB subset is sufficient for reference and the nationwide source can be
+re-imported from the original dataset if a later expansion requires it.
+
 The five card axes are `transport`, `parks_play`, `medical`,
 `education_care`, and `convenience`. `safety` is stored as a map-only facility
 inventory for future use; it is not a sixth summary card or a currently exposed
