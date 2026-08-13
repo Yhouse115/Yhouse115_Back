@@ -29,6 +29,9 @@ the following normalized serving tables instead:
   source record identity, status, and source-specific JSON attributes.
 - `complex_feature_access` stores selected, pre-computed walking-network access
   facts.
+- `complex_feature_walking_route` stores render-ready route coordinates for
+  selected complex-to-feature pairs. It is separate from the compact access
+  facts because geometry is only needed after a user selects a destination.
 - `complex_environment_summary` stores the card-ready nearest facility and
   count facts.
 

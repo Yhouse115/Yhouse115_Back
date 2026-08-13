@@ -51,10 +51,9 @@ class FamilyMapRepository:
             "select": ",".join(
                 [
                     "complex_id",
-                    "address",
-                    "complex_name_official_price",
-                    "complex_name_building_register",
-                    "complex_name_road_address",
+                    "name",
+                    "road_address",
+                    "parcel_address",
                     "approval_date",
                     "household_count",
                     "building_count",
@@ -64,30 +63,30 @@ class FamilyMapRepository:
             ),
             "latitude": "not.is.null",
             "longitude": "not.is.null",
-            "order": "household_count.desc.nullslast",
+            "order": "household_count.desc.nullslast,name,complex_id",
             "limit": str(limit),
         }
 
         if query:
             escaped = query.replace("*", "").replace(",", " ")
             params["or"] = (
-                f"(complex_name_official_price.ilike.*{escaped}*,"
-                f"complex_name_building_register.ilike.*{escaped}*)"
+                f"(name.ilike.*{escaped}*,"
+                f"road_address.ilike.*{escaped}*,"
+                f"parcel_address.ilike.*{escaped}*)"
             )
 
-        return await self._get("kreb_apt_complex_basic_20250918_yangcheon", params)
+        return await self._get("apartment_complex", params)
 
     async def get_apartment(self, complex_id: str) -> Optional[Dict[str, Any]]:
         rows = await self._get(
-            "kreb_apt_complex_basic_20250918_yangcheon",
+            "apartment_complex",
             {
                 "select": ",".join(
                     [
                         "complex_id",
-                        "address",
-                        "complex_name_official_price",
-                        "complex_name_building_register",
-                        "complex_name_road_address",
+                        "name",
+                        "road_address",
+                        "parcel_address",
                         "approval_date",
                         "household_count",
                         "building_count",
@@ -112,6 +111,7 @@ class FamilyMapRepository:
         ne_lat: float,
         ne_lng: float,
         limit: int,
+        filters: Sequence[Tuple[str, str]] = (),
     ) -> List[Dict[str, Any]]:
         params: List[Tuple[str, Any]] = [
             ("select", select),
@@ -119,6 +119,7 @@ class FamilyMapRepository:
             (lat_column, f"lte.{ne_lat}"),
             (lng_column, f"gte.{sw_lng}"),
             (lng_column, f"lte.{ne_lng}"),
+            *filters,
             ("limit", str(limit)),
         ]
         return await self._get(table, params)

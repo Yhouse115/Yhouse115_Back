@@ -34,6 +34,8 @@ class SourceConfig:
     address_column: Optional[str] = None
     geometry_column: Optional[str] = None
     metadata_columns: tuple[str, ...] = ()
+    filter_params: tuple[tuple[str, str], ...] = ()
+    use_raw_id: bool = False
 
     @property
     def compact_select(self) -> str:
@@ -50,16 +52,28 @@ class SourceConfig:
 
 SOURCE_CONFIGS = [
     SourceConfig(
+        # These records use the same normalized IDs as the stored walking
+        # routes.  Keeping that ID all the way to the map avoids a second
+        # source-ID translation for child-care and kindergarten markers.
         category="kids",
-        source="childcare_centers",
-        table="childcare_centers_yangcheon_processed",
-        select="source_row_number,center_name,address,latitude,longitude,center_type,operation_status,capacity_count,current_child_count,cctv_count",
-        id_column="source_row_number",
-        name_column="center_name",
+        source="education_care",
+        table="environment_feature",
+        select="feature_id,name,address,latitude,longitude,feature_type,source_dataset_id",
+        id_column="feature_id",
+        name_column="name",
         address_column="address",
         lat_column="latitude",
         lng_column="longitude",
-        metadata_columns=("center_type", "operation_status", "capacity_count", "current_child_count", "cctv_count"),
+        metadata_columns=("feature_type", "source_dataset_id"),
+        filter_params=(
+            ("feature_type", "in.(childcare,kindergarten)"),
+            ("map_visible", "eq.true"),
+            # An older child-care import remains in the normalized table, but
+            # it does not have matching pre-computed routes.  Serve only the
+            # current datasets whose feature IDs are route-table foreign keys.
+            ("source_dataset_id", "in.(education_childcare_yangcheon_20260731,education_kindergarten_yangcheon)"),
+        ),
+        use_raw_id=True,
     ),
     SourceConfig(
         category="kids",
@@ -151,6 +165,7 @@ def to_int(value: Any) -> Optional[int]:
 
 def apartment_name(row: Dict[str, Any]) -> str:
     for key in (
+        "name",
         "complex_name_official_price",
         "complex_name_road_address",
         "complex_name_building_register",
@@ -158,14 +173,22 @@ def apartment_name(row: Dict[str, Any]) -> str:
         value = row.get(key)
         if value:
             return str(value)
-    return str(row["address"])
+    return apartment_address(row)
+
+
+def apartment_address(row: Dict[str, Any]) -> str:
+    for key in ("road_address", "parcel_address", "address"):
+        value = row.get(key)
+        if value:
+            return str(value)
+    return "주소 정보 없음"
 
 
 def normalize_apartment(row: Dict[str, Any]) -> ApartmentSummary:
     return ApartmentSummary(
         id=str(row["complex_id"]),
         name=apartment_name(row),
-        address=str(row["address"]),
+        address=apartment_address(row),
         latitude=float(row["latitude"]),
         longitude=float(row["longitude"]),
         approval_date=row.get("approval_date"),
@@ -216,7 +239,7 @@ def normalize_feature(
         distance_m = round(haversine_m(origin_lat, origin_lng, latitude, longitude), 1)
 
     return MapFeature(
-        id=f"{config.source}:{row[config.id_column]}",
+        id=str(row[config.id_column]) if config.use_raw_id else f"{config.source}:{row[config.id_column]}",
         category=config.category,
         source=config.source,
         name=str(row[config.name_column]),
@@ -436,6 +459,7 @@ class FamilyMapService:
                 ne_lat=ne_lat,
                 ne_lng=ne_lng,
                 limit=limit,
+                filters=config.filter_params,
             )
             for config in selected_configs
         ]
