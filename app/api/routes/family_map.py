@@ -17,7 +17,7 @@ router = APIRouter(prefix="/family-map", tags=["family-map"])
 @router.get("/apartments", response_model=ApartmentSearchResponse)
 async def search_apartments(
     q: Optional[str] = Query(default=None, description="Apartment name or address search term."),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=1000),
 ) -> ApartmentSearchResponse:
     service = FamilyMapService()
     items = await service.search_apartments(q, limit)
