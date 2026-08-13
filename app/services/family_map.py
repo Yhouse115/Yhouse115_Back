@@ -7,6 +7,11 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from app.repositories.family_map import FamilyMapRepository
 from app.schemas.family_map import (
+    ApartmentCompareInsight,
+    ApartmentCompareMetric,
+    ApartmentCompareMetricTarget,
+    ApartmentCompareResponse,
+    ApartmentCompareTarget,
     ApartmentSummary,
     BoundsFeaturesResponse,
     FeatureSummary,
@@ -15,10 +20,62 @@ from app.schemas.family_map import (
 )
 
 EARTH_RADIUS_M = 6371000
-DEFAULT_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk"]
+DEFAULT_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk", "park", "hospital"]
+COMPARE_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk"]
 MAX_RADIUS_M = 3000
 MAX_LIMIT_PER_SOURCE = 5000
 CROSSWALK_VISUAL_MERGE_DISTANCE_M = 50
+
+METRIC_RULES: Dict[str, Dict[str, str]] = {
+    "kids": {
+        "label": "어린이시설",
+        "unit": "곳",
+        "direction": "more_is_positive",
+        "target_more": "돌봄·놀이 선택지 많음",
+        "base_more": "돌봄·놀이 선택지는 기준 단지가 많음",
+        "similar": "시설 수 비슷함",
+    },
+    "school": {
+        "label": "학교",
+        "unit": "곳",
+        "direction": "more_is_positive",
+        "target_more": "학교 선택지 많음",
+        "base_more": "학교 선택지는 기준 단지가 많음",
+        "similar": "학교 수 비슷함",
+    },
+    "crosswalk": {
+        "label": "횡단보도",
+        "unit": "개",
+        "direction": "contextual",
+        "target_more": "이동 경로 확인 필요",
+        "base_more": "횡단 지점은 비교 단지가 단순할 수 있음",
+        "similar": "횡단 지점 수 비슷함",
+    },
+    "signal": {
+        "label": "보행신호",
+        "unit": "개",
+        "direction": "more_is_positive",
+        "target_more": "보호 횡단 가능성 높음",
+        "base_more": "보행신호는 기준 단지가 많음",
+        "similar": "보행신호 수 비슷함",
+    },
+    "cctv": {
+        "label": "CCTV",
+        "unit": "대",
+        "direction": "contextual",
+        "target_more": "안전 인프라 밀도 높음",
+        "base_more": "CCTV 밀도는 기준 단지가 높음",
+        "similar": "CCTV 밀도 비슷함",
+    },
+    "risk": {
+        "label": "주의구간",
+        "unit": "곳",
+        "direction": "less_is_positive",
+        "target_more": "확인된 주의구간 많음",
+        "base_more": "확인된 주의구간 적음",
+        "similar": "주의구간 수 비슷함",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -34,6 +91,7 @@ class SourceConfig:
     address_column: Optional[str] = None
     geometry_column: Optional[str] = None
     metadata_columns: tuple[str, ...] = ()
+    filters: Optional[Dict[str, str]] = None
 
     @property
     def compact_select(self) -> str:
@@ -84,6 +142,31 @@ SOURCE_CONFIGS = [
         lat_column="latitude",
         lng_column="longitude",
         metadata_columns=("establishment_type", "phone_number", "homepage_url", "established_date"),
+    ),
+    SourceConfig(
+        category="park",
+        source="major_parks",
+        table="major_parks_yangcheon_processed",
+        select="source_row_number,display_name,park_name,address,latitude,longitude,area_square_meters,main_facilities,main_plants,phone_number,detail_url",
+        id_column="source_row_number",
+        name_column="display_name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("park_name", "area_square_meters", "main_facilities", "main_plants", "phone_number", "detail_url"),
+    ),
+    SourceConfig(
+        category="hospital",
+        source="environment_medical",
+        table="environment_feature",
+        select="feature_id,name,address,latitude,longitude,feature_type,service_types,attributes,source_dataset_id",
+        id_column="feature_id",
+        name_column="name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("feature_type", "service_types", "attributes", "source_dataset_id"),
+        filters={"axis": "eq.medical", "map_visible": "eq.true"},
     ),
     SourceConfig(
         category="crosswalk",
@@ -238,6 +321,182 @@ def summarize(features: Iterable[MapFeature]) -> List[FeatureSummary]:
         for category, count in counts.items()
         if count > 0
     ]
+
+
+def summary_to_metrics(summary: Iterable[FeatureSummary]) -> Dict[str, int]:
+    values = {category: 0 for category in COMPARE_CATEGORIES}
+    for item in summary:
+        if item.category in values:
+            values[item.category] = item.count
+    return values
+
+
+def compare_state(base_count: int, target_count: int) -> str:
+    diff = target_count - base_count
+    tolerance = max(2, round(max(base_count, target_count) * 0.1))
+    if abs(diff) <= tolerance:
+        return "similar"
+    if diff > 0:
+        return "target_more"
+    return "base_more"
+
+
+def metric_tone(metric_code: str, state: str) -> str:
+    direction = METRIC_RULES[metric_code]["direction"]
+    if state == "similar":
+        return "neutral"
+    if direction == "more_is_positive":
+        return "positive" if state == "target_more" else "caution"
+    if direction == "less_is_positive":
+        return "caution" if state == "target_more" else "positive"
+    return "context"
+
+
+def metric_description(metric_code: str, base_count: int, target_count: int) -> str:
+    rule = METRIC_RULES[metric_code]
+    state = compare_state(base_count, target_count)
+    return rule[state]
+
+
+def build_metric_rows(
+    base_metrics: Dict[str, int],
+    target_results: List[ApartmentCompareTarget],
+) -> List[ApartmentCompareMetric]:
+    rows: List[ApartmentCompareMetric] = []
+    for metric_code in COMPARE_CATEGORIES:
+        rule = METRIC_RULES[metric_code]
+        base_count = base_metrics[metric_code]
+        targets = []
+        for result in target_results:
+            target_count = result.metrics[metric_code]
+            state = compare_state(base_count, target_count)
+            targets.append(
+                ApartmentCompareMetricTarget(
+                    apartment_id=result.apartment.id,
+                    count=target_count,
+                    diff=target_count - base_count,
+                    comparison=state,
+                    label=rule[state],
+                    tone=metric_tone(metric_code, state),
+                )
+            )
+        rows.append(
+            ApartmentCompareMetric(
+                code=metric_code,
+                label=rule["label"],
+                unit=rule["unit"],
+                base_count=base_count,
+                targets=targets,
+            )
+        )
+    return rows
+
+
+def build_insights(base_metrics: Dict[str, int], target_metrics: Dict[str, int]) -> List[ApartmentCompareInsight]:
+    insights: List[ApartmentCompareInsight] = []
+    education_codes = [
+        code for code in ("kids", "school")
+        if compare_state(base_metrics[code], target_metrics[code]) == "target_more"
+    ]
+    if education_codes:
+        insights.append(
+            ApartmentCompareInsight(
+                category="education",
+                title="교육·돌봄 선택지 많음",
+                description="기준 아파트보다 1km 이내 어린이시설 또는 학교 수가 더 많습니다.",
+                tone="positive",
+                metric_codes=education_codes,
+            )
+        )
+
+    walking_codes = []
+    if compare_state(base_metrics["signal"], target_metrics["signal"]) == "target_more":
+        walking_codes.append("signal")
+    if compare_state(base_metrics["crosswalk"], target_metrics["crosswalk"]) == "target_more":
+        walking_codes.append("crosswalk")
+    if walking_codes:
+        descriptions = []
+        if "signal" in walking_codes:
+            descriptions.append("보행신호 수가 더 많아 보호 횡단 가능성이 높게 확인됩니다.")
+        if "crosswalk" in walking_codes:
+            descriptions.append("횡단보도 수가 많아 실제 등하교 동선의 복잡도도 함께 확인하는 것이 좋습니다.")
+        insights.append(
+            ApartmentCompareInsight(
+                category="walking",
+                title="보행 조건 확인 필요",
+                description=" ".join(descriptions),
+                tone="context",
+                metric_codes=walking_codes,
+            )
+        )
+
+    safety_codes = []
+    if compare_state(base_metrics["cctv"], target_metrics["cctv"]) == "target_more":
+        safety_codes.append("cctv")
+    if compare_state(base_metrics["risk"], target_metrics["risk"]) == "base_more":
+        safety_codes.append("risk")
+    if safety_codes:
+        descriptions = []
+        if "cctv" in safety_codes:
+            descriptions.append("CCTV 수가 더 많아 안전 인프라 밀도가 높게 확인됩니다.")
+        if "risk" in safety_codes:
+            descriptions.append("확인된 주의구간 수는 기준 아파트보다 적습니다.")
+        insights.append(
+            ApartmentCompareInsight(
+                category="safety",
+                title="생활 안전 지표 우세",
+                description=" ".join(descriptions),
+                tone="positive",
+                metric_codes=safety_codes,
+            )
+        )
+
+    caution_codes = [
+        code for code in ("risk",)
+        if compare_state(base_metrics[code], target_metrics[code]) == "target_more"
+    ]
+    if caution_codes:
+        insights.append(
+            ApartmentCompareInsight(
+                category="safety",
+                title="주의구간 확인 필요",
+                description="확인된 주의구간 수가 기준 아파트보다 많아 실제 생활 동선과 함께 판단하는 것이 좋습니다.",
+                tone="caution",
+                metric_codes=caution_codes,
+            )
+        )
+
+    if not insights:
+        insights.append(
+            ApartmentCompareInsight(
+                category="overall",
+                title="주요 지표 유사",
+                description="기준 아파트와 비교 아파트의 1km 이내 주요 생활환경 지표가 전반적으로 비슷합니다.",
+                tone="neutral",
+                metric_codes=[],
+            )
+        )
+    return insights
+
+
+def build_target_summary(base_name: str, target_name: str, insights: List[ApartmentCompareInsight]) -> str:
+    positive = [item for item in insights if item.tone == "positive"]
+    context = [item for item in insights if item.tone == "context"]
+    caution = [item for item in insights if item.tone == "caution"]
+
+    if positive and (context or caution):
+        second = context[0] if context else caution[0]
+        return (
+            f"{target_name}은 {positive[0].title} 조건이 {base_name}보다 더 두드러집니다. "
+            f"다만 {second.title} 항목은 실제 이동 경로와 함께 확인하는 것이 좋습니다."
+        )
+    if positive:
+        return f"{target_name}은 {positive[0].title} 조건이 {base_name}보다 더 두드러집니다."
+    if context:
+        return f"{target_name}은 {context[0].title} 항목을 중심으로 실제 생활 동선을 확인하는 것이 좋습니다."
+    if caution:
+        return f"{target_name}은 {caution[0].title} 항목을 중심으로 실제 생활 동선을 확인하는 것이 좋습니다."
+    return f"{target_name}과 {base_name}은 주요 생활환경 지표가 전반적으로 비슷하게 확인됩니다."
 
 
 def dedupe_visual_crosswalks(features: List[MapFeature]) -> List[MapFeature]:
@@ -408,6 +667,66 @@ class FamilyMapService:
             features=display_features,
         )
 
+    async def compare_apartments(
+        self,
+        base_apartment_id: str,
+        target_apartment_ids: List[str],
+        radius_m: int,
+    ) -> ApartmentCompareResponse:
+        target_ids = list(dict.fromkeys(target_apartment_ids))[:2]
+        if not target_ids:
+            raise ValueError("At least one target apartment is required.")
+        if base_apartment_id in target_ids:
+            raise ValueError("Base apartment cannot be used as a comparison target.")
+
+        radius = min(max(radius_m, 1), MAX_RADIUS_M)
+        responses = await asyncio.gather(
+            self.get_nearby_features(
+                complex_id=base_apartment_id,
+                radius_m=radius,
+                categories=",".join(COMPARE_CATEGORIES),
+                limit_per_source=MAX_LIMIT_PER_SOURCE,
+            ),
+            *[
+                self.get_nearby_features(
+                    complex_id=target_id,
+                    radius_m=radius,
+                    categories=",".join(COMPARE_CATEGORIES),
+                    limit_per_source=MAX_LIMIT_PER_SOURCE,
+                )
+                for target_id in target_ids
+            ],
+        )
+
+        base_response = responses[0]
+        base_metrics = summary_to_metrics(base_response.summary)
+        target_results: List[ApartmentCompareTarget] = []
+        summaries: List[str] = []
+
+        for response in responses[1:]:
+            target_metrics = summary_to_metrics(response.summary)
+            insights = build_insights(base_metrics, target_metrics)
+            summary = build_target_summary(base_response.apartment.name, response.apartment.name, insights)
+            summaries.append(summary)
+            target_results.append(
+                ApartmentCompareTarget(
+                    apartment=response.apartment,
+                    metrics=target_metrics,
+                    summary=summary,
+                    insights=insights,
+                )
+            )
+
+        return ApartmentCompareResponse(
+            base=base_response.apartment,
+            radius_m=radius,
+            categories=list(COMPARE_CATEGORIES),
+            base_metrics=base_metrics,
+            targets=target_results,
+            metrics=build_metric_rows(base_metrics, target_results),
+            summary=summaries,
+        )
+
     async def _fetch_features_in_bounds(
         self,
         selected_categories: List[str],
@@ -436,6 +755,7 @@ class FamilyMapService:
                 ne_lat=ne_lat,
                 ne_lng=ne_lng,
                 limit=limit,
+                filters=config.filters,
             )
             for config in selected_configs
         ]
