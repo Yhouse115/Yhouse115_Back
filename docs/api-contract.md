@@ -54,8 +54,8 @@ one elementary school, child-care centre, or kindergarten. `routeCoordinates` us
 polyline. The response also includes the stored walking distance, walking time,
 route method, and calculation timestamp.
 
-Only `elementary_school`, `childcare`, and `kindergarten` pairs whose stored
-walking distance is below 1 km are loaded. A missing or out-of-policy pair
+Only `elementary_school`, `childcare`, `kindergarten`, and `park` pairs whose
+stored walking distance is below 1.5 km are loaded. A missing or out-of-policy pair
 returns `404 WALKING_ROUTE_NOT_FOUND`.
 The request is a table lookup: it must never run Dijkstra or call an external
 routing API.

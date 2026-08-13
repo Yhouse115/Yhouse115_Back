@@ -15,7 +15,7 @@ from app.schemas.family_map import (
 )
 
 EARTH_RADIUS_M = 6371000
-DEFAULT_CATEGORIES = ["kids", "school", "crosswalk", "signal", "cctv", "risk"]
+DEFAULT_CATEGORIES = ["kids", "school", "park", "hospital", "crosswalk", "signal", "cctv", "risk"]
 MAX_RADIUS_M = 3000
 MAX_LIMIT_PER_SOURCE = 5000
 CROSSWALK_VISUAL_MERGE_DISTANCE_M = 50
@@ -98,6 +98,48 @@ SOURCE_CONFIGS = [
         lat_column="latitude",
         lng_column="longitude",
         metadata_columns=("establishment_type", "phone_number", "homepage_url", "established_date"),
+    ),
+    SourceConfig(
+        # Use the normalized IDs from the access dataset so a selected park
+        # can use the same stored-route lookup as schools and child-care.
+        category="park",
+        source="environment_parks",
+        table="environment_feature",
+        select="feature_id,name,address,latitude,longitude,feature_type,attributes,source_dataset_id",
+        id_column="feature_id",
+        name_column="name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("feature_type", "attributes", "source_dataset_id"),
+        filter_params=(
+            ("axis", "eq.parks_play"),
+            ("feature_type", "eq.park"),
+            ("map_visible", "eq.true"),
+            ("source_dataset_id", "eq.leisure_parks_sinjeong_nearby_2026h1"),
+        ),
+        use_raw_id=True,
+    ),
+    SourceConfig(
+        category="hospital",
+        source="environment_medical",
+        table="environment_feature",
+        select="feature_id,name,address,latitude,longitude,feature_type,attributes,source_dataset_id",
+        id_column="feature_id",
+        name_column="name",
+        address_column="address",
+        lat_column="latitude",
+        lng_column="longitude",
+        metadata_columns=("feature_type", "attributes", "source_dataset_id"),
+        filter_params=(
+            ("axis", "eq.medical"),
+            ("feature_type", "eq.medical_clinic"),
+            ("map_visible", "eq.true"),
+            # Reuse the IDs in complex_feature_access so marker clicks can
+            # retrieve the pre-computed walking route without translation.
+            ("source_dataset_id", "eq.healthcare_hospitals_seoul"),
+        ),
+        use_raw_id=True,
     ),
     SourceConfig(
         category="crosswalk",

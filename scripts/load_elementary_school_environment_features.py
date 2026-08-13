@@ -27,13 +27,21 @@ from load_complex_feature_walking_routes import configured_value
 
 WORKSPACE = Path(__file__).resolve().parents[4]
 DEFAULT_INPUT = WORKSPACE / "data" / "processed" / "environment" / "pois" / "environment_features.csv"
-SUPPORTED_FEATURE_TYPES = ("elementary_school", "childcare", "kindergarten")
+SUPPORTED_FEATURE_TYPES = ("elementary_school", "childcare", "kindergarten", "park", "medical_clinic")
+FEATURE_TYPE_AXES = {
+    "elementary_school": "education_care",
+    "childcare": "education_care",
+    "kindergarten": "education_care",
+    "park": "parks_play",
+    "medical_clinic": "medical",
+}
 SOURCE_DATASET_NAMES = {
     "education_elementary_yangcheon": "Yangcheon elementary schools",
     "education_childcare_yangcheon_20260731": "Yangcheon child-care centres (2026-07-31)",
     "education_kindergarten_yangcheon": "Yangcheon kindergartens",
+    "leisure_parks_sinjeong_nearby_2026h1": "Yangcheon and nearby Seoul parks (2026 H1)",
+    "healthcare_hospitals_seoul": "Seoul medical facilities",
 }
-AXIS = "education_care"
 DATASET_UPSERT_COLUMNS = "source_dataset_id"
 FEATURE_UPSERT_COLUMNS = "feature_id"
 
@@ -74,7 +82,12 @@ def parse_attributes(value: str | None, feature_id: str) -> dict[str, Any]:
     return attributes
 
 
-def load_school_rows(path: Path, feature_types: set[str]) -> list[dict[str, Any]]:
+def load_school_rows(
+    path: Path,
+    feature_types: set[str],
+    source_dataset_ids: set[str] | None = None,
+    address_contains: str | None = None,
+) -> list[dict[str, Any]]:
     if not path.is_file():
         raise FileNotFoundError(f"School feature input is missing: {path}")
     with path.open(encoding="utf-8-sig", newline="") as handle:
@@ -86,6 +99,12 @@ def load_school_rows(path: Path, feature_types: set[str]) -> list[dict[str, Any]
     for source in source_rows:
         feature_type = source.get("feature_type") or ""
         if feature_type not in feature_types:
+            continue
+        source_dataset_id = (source.get("source_dataset_id") or "").strip()
+        address = source.get("address") or ""
+        if source_dataset_ids and source_dataset_id not in source_dataset_ids:
+            continue
+        if address_contains and address_contains not in address:
             continue
         feature_id = (source.get("feature_id") or "").strip()
         source_record_id = (source.get("source_record_id") or "").strip()
@@ -102,15 +121,15 @@ def load_school_rows(path: Path, feature_types: set[str]) -> list[dict[str, Any]
         rows.append(
             {
                 "feature_id": feature_id,
-                "source_dataset_id": source.get("source_dataset_id") or "",
+                "source_dataset_id": source_dataset_id,
                 "source_record_id": source_record_id,
                 "layer_category": source.get("layer_category") or "education_childcare",
-                "axis": AXIS,
+                "axis": FEATURE_TYPE_AXES[feature_type],
                 "feature_type": feature_type,
                 "line_names": [],
                 "service_types": [],
                 "name": source.get("name") or None,
-                "address": source.get("address") or None,
+                "address": address or None,
                 "scope_role": "yangcheon",
                 "longitude": longitude,
                 "latitude": latitude,
@@ -165,6 +184,15 @@ def parse_args() -> argparse.Namespace:
         choices=SUPPORTED_FEATURE_TYPES,
         help="Feature type to publish; may be repeated (defaults to elementary_school for compatibility).",
     )
+    parser.add_argument(
+        "--source-dataset",
+        action="append",
+        help="Publish only this normalized source dataset; may be repeated.",
+    )
+    parser.add_argument(
+        "--address-contains",
+        help="Publish only facilities whose normalized address contains this text.",
+    )
     parser.add_argument("--apply", action="store_true", help="Write rows to Supabase. Omit for validation-only dry run.")
     return parser.parse_args()
 
@@ -172,7 +200,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     feature_types = set(args.feature_type or ["elementary_school"])
-    rows = load_school_rows(args.input, feature_types)
+    rows = load_school_rows(
+        args.input,
+        feature_types,
+        set(args.source_dataset) if args.source_dataset else None,
+        args.address_contains,
+    )
     source_dataset_ids = sorted({str(row["source_dataset_id"]) for row in rows})
     datasets = [
         {

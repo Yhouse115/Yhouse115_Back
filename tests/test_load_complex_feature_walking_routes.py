@@ -80,11 +80,11 @@ def test_loader_builds_upsert_rows_from_local_geojson(tmp_path: Path) -> None:
     ]
 
 
-def test_loader_rejects_routes_at_or_above_one_kilometer(tmp_path: Path) -> None:
+def test_loader_rejects_routes_at_or_above_one_point_five_kilometers(tmp_path: Path) -> None:
     geojson_path = tmp_path / "routes.geojson"
-    write_geojson(geojson_path, distance=1000.0)
+    write_geojson(geojson_path, distance=1500.0)
 
-    with pytest.raises(RouteInputError, match="below 1000 m"):
+    with pytest.raises(RouteInputError, match="below 1500 m"):
         route_rows_from_geojson(
             geojson_path,
             calculation_version="test-v1",

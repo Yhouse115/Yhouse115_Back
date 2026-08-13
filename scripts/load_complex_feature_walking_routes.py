@@ -14,10 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-SUPPORTED_ACCESS_GROUPS = {"elementary_school", "childcare", "kindergarten"}
+SUPPORTED_ACCESS_GROUPS = {"elementary_school", "childcare", "kindergarten", "park", "medical_clinic"}
 DEFAULT_CALCULATION_VERSION = "oa21208_yangcheon_guro_extended_20260811_center_v2"
 DEFAULT_MAIN_ORIGIN_ID = "complex_center"
-MAX_STORED_WALK_DISTANCE_M = 1000.0
+MAX_STORED_WALK_DISTANCE_M = 1500.0
 UPSERT_COLUMNS = (
     "complex_id,feature_id,access_group,main_origin_id,calculation_version"
 )

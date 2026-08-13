@@ -54,8 +54,8 @@ python scripts/load_complex_feature_walking_routes.py `
 ```
 
 For child-care centres and kindergartens, use
-`complex_education_care_routes.geojson`. Both route exports only contain pairs
-whose stored walking distance is below 1 km.
+`complex_education_care_routes.geojson`. Route exports contain pairs whose
+stored walking distance is below 1.5 km.
 
 ## Docker Compose
 
