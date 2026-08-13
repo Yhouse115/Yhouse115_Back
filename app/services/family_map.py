@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
 from app.repositories.family_map import FamilyMapRepository
+from app.repositories.walking_route import WalkingRouteRepository
 from app.schemas.family_map import (
     ApartmentSummary,
     BoundsFeaturesResponse,
@@ -19,6 +20,8 @@ DEFAULT_CATEGORIES = ["kids", "school", "park", "hospital", "crosswalk", "signal
 MAX_RADIUS_M = 3000
 MAX_LIMIT_PER_SOURCE = 5000
 CROSSWALK_VISUAL_MERGE_DISTANCE_M = 50
+ELEMENTARY_SCHOOL_MARKER_PREFIX = "elementary_schools:"
+ELEMENTARY_SCHOOL_ROUTE_PREFIX = "education_elementary_yangcheon:"
 
 
 @dataclass(frozen=True)
@@ -294,6 +297,13 @@ def normalize_feature(
     )
 
 
+def stored_walking_route_feature_id(feature: MapFeature) -> str:
+    """Translate legacy school marker IDs to the normalized route-table key."""
+    if feature.id.startswith(ELEMENTARY_SCHOOL_MARKER_PREFIX):
+        return ELEMENTARY_SCHOOL_ROUTE_PREFIX + feature.id.removeprefix(ELEMENTARY_SCHOOL_MARKER_PREFIX)
+    return feature.id
+
+
 def summarize(features: Iterable[MapFeature]) -> List[FeatureSummary]:
     counts = {category: 0 for category in DEFAULT_CATEGORIES}
     for feature in features:
@@ -385,8 +395,13 @@ def cluster_features_for_zoom(features: List[MapFeature], zoom: int) -> List[Map
 
 
 class FamilyMapService:
-    def __init__(self, repository: Optional[FamilyMapRepository] = None) -> None:
+    def __init__(
+        self,
+        repository: Optional[FamilyMapRepository] = None,
+        walking_route_repository: Optional[WalkingRouteRepository] = None,
+    ) -> None:
         self.repository = repository or FamilyMapRepository()
+        self.walking_route_repository = walking_route_repository
 
     async def search_apartments(self, query: Optional[str], limit: int) -> List[ApartmentSummary]:
         normalized_query = query.strip().lower() if query else ""
@@ -430,6 +445,7 @@ class FamilyMapService:
             for feature in features
             if feature.distance_m is not None and feature.distance_m <= radius
         ]
+        await self._attach_stored_walking_summaries(complex_id, filtered)
         filtered.sort(key=lambda feature: (feature.category, feature.distance_m or 0))
         return NearbyFeaturesResponse(
             apartment=apartment,
@@ -438,6 +454,41 @@ class FamilyMapService:
             summary=summarize(filtered),
             features=filtered,
         )
+
+    async def _attach_stored_walking_summaries(
+        self,
+        complex_id: str,
+        features: List[MapFeature],
+    ) -> None:
+        route_feature_ids = [
+            stored_walking_route_feature_id(feature)
+            for feature in features
+            if feature.source in {"elementary_schools", "education_care", "environment_parks", "environment_medical"}
+        ]
+        if not route_feature_ids:
+            return
+        repository = self.walking_route_repository
+        if repository is None:
+            try:
+                repository = WalkingRouteRepository()
+            except RuntimeError:
+                return
+        try:
+            summaries = await repository.get_latest_route_summaries(
+                complex_id=complex_id,
+                feature_ids=route_feature_ids,
+            )
+        except RuntimeError:
+            return
+        for feature in features:
+            summary = summaries.get(stored_walking_route_feature_id(feature))
+            if not summary:
+                continue
+            try:
+                feature.walking_distance_m = float(summary["walk_distance_m"])
+                feature.walking_time_min = float(summary["walk_time_min"])
+            except (KeyError, TypeError, ValueError):
+                continue
 
     async def get_features_in_bounds(
         self,

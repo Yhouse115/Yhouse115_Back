@@ -54,3 +54,31 @@ class WalkingRouteRepository:
             },
         )
         return rows[0] if rows else None
+
+    async def get_latest_route_summaries(
+        self,
+        *,
+        complex_id: str,
+        feature_ids: list[str],
+        main_origin_id: str = "complex_center",
+    ) -> dict[str, dict[str, Any]]:
+        """Return one newest distance/time summary for each requested facility."""
+        if not feature_ids:
+            return {}
+        feature_filter = "in.(" + ",".join(feature_ids) + ")"
+        rows = await self._get(
+            "complex_feature_walking_route",
+            {
+                "select": "feature_id,walk_distance_m,walk_time_min,calculated_at,calculation_version",
+                "complex_id": f"eq.{complex_id}",
+                "feature_id": feature_filter,
+                "main_origin_id": f"eq.{main_origin_id}",
+                "order": "feature_id,calculated_at.desc,calculation_version.desc",
+            },
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            feature_id = str(row.get("feature_id") or "")
+            if feature_id and feature_id not in latest:
+                latest[feature_id] = row
+        return latest

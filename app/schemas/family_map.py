@@ -29,6 +29,8 @@ class MapFeature(BaseModel):
     longitude: float
     address: Optional[str] = None
     distance_m: Optional[float] = None
+    walking_distance_m: Optional[float] = None
+    walking_time_min: Optional[float] = None
     geometry: Optional[Dict[str, Any]] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 

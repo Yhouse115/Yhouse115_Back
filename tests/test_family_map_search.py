@@ -28,6 +28,25 @@ class FakeFamilyMapRepository:
         ]
 
 
+class FakeWalkingRouteRepository:
+    async def get_latest_route_summaries(
+        self,
+        *,
+        complex_id: str,
+        feature_ids: list[str],
+        main_origin_id: str = "complex_center",
+    ) -> dict[str, dict[str, object]]:
+        assert complex_id == "APT-1"
+        assert feature_ids == ["education_elementary_yangcheon:7081453"]
+        assert main_origin_id == "complex_center"
+        return {
+            "education_elementary_yangcheon:7081453": {
+                "walk_distance_m": 982.4,
+                "walk_time_min": 13.7,
+            }
+        }
+
+
 @pytest.mark.anyio
 async def test_search_apartments_keeps_large_unfiltered_limit() -> None:
     repository = FakeFamilyMapRepository()
@@ -37,3 +56,28 @@ async def test_search_apartments_keeps_large_unfiltered_limit() -> None:
 
     assert repository.requested_limit == 507
     assert len(apartments) == 507
+
+
+@pytest.mark.anyio
+async def test_attaches_stored_walking_summary_to_route_eligible_feature() -> None:
+    service = FamilyMapService(
+        repository=FakeFamilyMapRepository(),
+        walking_route_repository=FakeWalkingRouteRepository(),
+    )
+    from app.schemas.family_map import MapFeature
+
+    features = [
+        MapFeature(
+            id="elementary_schools:7081453",
+            category="school",
+            source="elementary_schools",
+            name="서울월촌초등학교",
+            latitude=37.54,
+            longitude=126.87,
+        )
+    ]
+
+    await service._attach_stored_walking_summaries("APT-1", features)
+
+    assert features[0].walking_distance_m == 982.4
+    assert features[0].walking_time_min == 13.7
