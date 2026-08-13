@@ -34,8 +34,8 @@ environment migrations in order to create the following serving tables:
 - `complex_feature_access`: pre-computed walking access from a complex to a facility.
 - `complex_environment_summary`: pre-computed card facts for a complex.
 
-The existing `apartment_complex` table is the map-serving apartment master.
-Environment access loaders retain its `CX-*` `complex_id` when writing
+The `apartment_complex` table is the map-serving apartment master. Environment
+access loaders retain its `CX-*` `complex_id` when writing
 `complex_feature_access` and `complex_environment_summary`. The
 `kreb_apt_complex_basic_20250918_yangcheon` table remains a raw/reference
 source and must not replace that serving ID.

@@ -1,8 +1,8 @@
 -- Link environment-serving rows to the existing CX-* apartment master.
 --
--- `public.apartment_complex` is created by the apartment-serving schema and
--- is intentionally not recreated here. This migration makes that dependency
--- explicit for the environment-serving tables.
+-- The initial environment-serving migration creates `public.apartment_complex`.
+-- This follow-up migration makes that dependency explicit for databases where
+-- the first migration was previously applied without the foreign keys.
 
 begin;
 
