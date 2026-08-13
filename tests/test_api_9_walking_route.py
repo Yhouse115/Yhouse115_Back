@@ -172,7 +172,7 @@ def test_service_returns_actual_crossing_events_with_matching_counts() -> None:
             "pedestrian_signal_count": 1,
             "cctv_location_count": 8,
             "route_crossing_events": [{
-                "crosswalk_link_id": "229944",
+                "crosswalk_event_id": "node:229944",
                 "longitude": 126.875,
                 "latitude": 37.52,
                 "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.875, "latitude": 37.52}],
@@ -187,7 +187,7 @@ def test_service_returns_actual_crossing_events_with_matching_counts() -> None:
     )
 
     assert route.crossing_events is not None
-    assert route.crossing_events[0].crosswalk_link_id == "229944"
+    assert route.crossing_events[0].crosswalk_event_id == "node:229944"
     assert route.crossing_events[0].pedestrian_signals[0].id == "25-0000004005"
 
 

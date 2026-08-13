@@ -14,9 +14,9 @@ class WalkingRoutePedestrianSignal(ApiModel):
 
 
 class WalkingRouteCrossingEvent(ApiModel):
-    """One crosswalk link genuinely traversed by a stored walking route."""
+    """One clustered crosswalk-node event exactly present on a stored route."""
 
-    crosswalk_link_id: str = Field(serialization_alias="crosswalkLinkId")
+    crosswalk_event_id: str = Field(serialization_alias="crosswalkEventId")
     longitude: float
     latitude: float
     pedestrian_signals: list[WalkingRoutePedestrianSignal] = Field(serialization_alias="pedestrianSignals")

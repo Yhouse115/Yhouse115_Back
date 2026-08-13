@@ -16,10 +16,10 @@ alter table public.complex_feature_walking_route
         );
 
 comment on column public.complex_feature_walking_route.route_crossing_events is
-    'One event per OA-21208 crosswalk link actually traversed by the stored route; includes marker coordinates and attached pedestrian-signal coordinates.';
+    'One clustered crosswalk-node event exactly present on the stored route; includes marker coordinates and attached pedestrian-signal coordinates.';
 comment on column public.complex_feature_walking_route.crosswalk_count is
-    'Count of OA-21208 crosswalk links actually traversed by the stored walking route when route_crossing_events is present.';
+    'Count of clustered crosswalk-source nodes exactly present on the stored walking route when route_crossing_events is present.';
 comment on column public.complex_feature_walking_route.pedestrian_signal_count is
-    'Distinct pedestrian-signal locations attached to a traversed OA-21208 crosswalk link when route_crossing_events is present.';
+    'Distinct pedestrian-signal locations within the matching threshold of an exact route-crosswalk event when route_crossing_events is present.';
 
 commit;

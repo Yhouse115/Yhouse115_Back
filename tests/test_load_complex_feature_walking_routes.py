@@ -147,7 +147,7 @@ def test_loader_accepts_actual_crossing_events_and_requires_matching_counts(tmp_
         "crosswalk_count": 1,
         "pedestrian_signal_count": 1,
         "route_crossing_events": [{
-            "crosswalk_link_id": "229944",
+            "crosswalk_event_id": "node:229944",
             "longitude": 126.8745,
             "latitude": 37.5196,
             "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.8745, "latitude": 37.5196}],
@@ -162,7 +162,7 @@ def test_loader_accepts_actual_crossing_events_and_requires_matching_counts(tmp_
     )[0]
 
     assert row["route_crossing_events"] == [{
-        "crosswalk_link_id": "229944",
+        "crosswalk_event_id": "node:229944",
         "longitude": 126.8745,
         "latitude": 37.5196,
         "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.8745, "latitude": 37.5196}],

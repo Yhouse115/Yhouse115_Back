@@ -1,12 +1,13 @@
-"""Recompute route safety using actual OA-21208 crosswalk links.
+"""Pre-compute actual crossing events from walking-route graph nodes.
 
-Unlike the older point-to-route proximity batch, this tool recognises a
-crosswalk only when a segment of the stored route is an OA-21208 link whose
-``crosswalk`` flag is enabled.  A pedestrian signal is retained only when it
-is close to one of those selected crossing links.  This keeps route panels
-and route-only map markers about crossings the user actually makes.
+The public OA-21208 ``crosswalk`` link flag is incomplete for the local
+network.  Crosswalk source nodes, however, are part of the same graph.  A
+crossing event is therefore recorded only when a crosswalk node is an exact
+vertex of the reconstructed walking route.  Nodes within 20 m form one visual
+crossing event, and pedestrian signals are included only when attached to one
+of those selected nodes within 20 m.
 
-The tool is intentionally local and batch-only.  It never writes Supabase.
+This is a local batch tool; it never writes Supabase.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import argparse
 import json
 import math
 from collections import defaultdict
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
@@ -28,128 +28,148 @@ from build_walking_route_safety_counts import (
     indexed_points,
     load_feature_collection,
     load_safety_points,
-    point_to_segment_meters,
 )
 
 
-CALCULATION_VERSION = "route_crossing_link_and_signal_20m_v1"
+CALCULATION_VERSION = "route_exact_crosswalk_node_and_signal_20m_v2"
 DEFAULT_SIGNAL_MATCH_THRESHOLD_M = 20
+DEFAULT_EVENT_CLUSTER_DISTANCE_M = 20
 COORDINATE_DECIMALS = 7
+EARTH_RADIUS_M = 6_371_000.0
 
 
-@dataclass(frozen=True)
-class CrosswalkLink:
-    link_id: str
-    coordinates: tuple[tuple[float, float], ...]
-
-    @property
-    def midpoint(self) -> tuple[float, float]:
-        first = self.coordinates[0]
-        last = self.coordinates[-1]
-        return ((first[0] + last[0]) / 2, (first[1] + last[1]) / 2)
-
-
-def rounded_coordinate(value: Any) -> tuple[float, float]:
-    try:
-        longitude, latitude = float(value[0]), float(value[1])
-    except (IndexError, TypeError, ValueError) as exc:
-        raise SafetyInputError("Walking-link geometry contains an invalid coordinate.") from exc
-    if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
-        raise SafetyInputError("Walking-link geometry contains an out-of-range coordinate.")
+def coordinate_key(longitude: float, latitude: float) -> tuple[float, float]:
     return round(longitude, COORDINATE_DECIMALS), round(latitude, COORDINATE_DECIMALS)
 
 
-def segment_key(start: tuple[float, float], end: tuple[float, float]) -> tuple[tuple[float, float], tuple[float, float]]:
-    """Use an undirected key because the walking graph may traverse either way."""
-    return (start, end) if start <= end else (end, start)
-
-
-def is_truthy(value: Any) -> bool:
-    return str(value).strip().casefold() in {"1", "true", "t", "y", "yes"}
-
-
-def load_crosswalk_link_index(
-    path: Path,
-) -> tuple[dict[str, CrosswalkLink], dict[tuple[tuple[float, float], tuple[float, float]], set[str]]]:
-    collection = load_feature_collection(path)
-    links: dict[str, CrosswalkLink] = {}
-    segment_index: dict[tuple[tuple[float, float], tuple[float, float]], set[str]] = defaultdict(set)
-    for feature_index, feature in enumerate(collection["features"]):
-        properties = feature.get("properties")
-        geometry = feature.get("geometry")
-        if not isinstance(properties, dict) or not isinstance(geometry, dict):
-            continue
-        if not is_truthy(properties.get("crosswalk")):
-            continue
-        link_id = str(properties.get("link_id") or "").strip()
-        coordinates = geometry.get("coordinates")
-        if not link_id or geometry.get("type") != "LineString" or not isinstance(coordinates, list) or len(coordinates) < 2:
-            raise SafetyInputError(f"Crosswalk link {feature_index}: ID and LineString geometry are required.")
-        normalized = tuple(rounded_coordinate(coordinate) for coordinate in coordinates)
-        link = CrosswalkLink(link_id=link_id, coordinates=normalized)
-        existing = links.get(link_id)
-        if existing and existing != link:
-            raise SafetyInputError(f"Crosswalk link ID is duplicated with different geometry: {link_id}")
-        links[link_id] = link
-        for start, end in zip(normalized, normalized[1:]):
-            segment_index[segment_key(start, end)].add(link_id)
-    if not links:
-        raise SafetyInputError(f"No crosswalk=1 links were found: {path}")
-    return links, segment_index
-
-
-def selected_crosswalk_links(
-    route_coordinates: list[list[float]],
-    segment_index: dict[tuple[tuple[float, float], tuple[float, float]], set[str]],
-) -> set[str]:
-    normalized = [rounded_coordinate(coordinate) for coordinate in route_coordinates]
-    selected: set[str] = set()
-    for start, end in zip(normalized, normalized[1:]):
-        selected.update(segment_index.get(segment_key(start, end), ()))
-    return selected
-
-
-def distance_to_link_meters(longitude: float, latitude: float, link: CrosswalkLink) -> float:
-    return min(
-        point_to_segment_meters(longitude, latitude, list(start), list(end))
-        for start, end in zip(link.coordinates, link.coordinates[1:])
+def haversine_meters(first: tuple[float, float], second: tuple[float, float]) -> float:
+    longitude_1, latitude_1 = first
+    longitude_2, latitude_2 = second
+    latitude_delta = math.radians(latitude_2 - latitude_1)
+    longitude_delta = math.radians(longitude_2 - longitude_1)
+    value = (
+        math.sin(latitude_delta / 2) ** 2
+        + math.cos(math.radians(latitude_1))
+        * math.cos(math.radians(latitude_2))
+        * math.sin(longitude_delta / 2) ** 2
     )
+    return EARTH_RADIUS_M * 2 * math.atan2(math.sqrt(value), math.sqrt(1 - value))
 
 
-def selected_signal_ids(
+def crosswalk_node_index(points: Iterable[tuple[str, float, float]]) -> dict[tuple[float, float], tuple[str, float, float]]:
+    result: dict[tuple[float, float], tuple[str, float, float]] = {}
+    for identifier, longitude, latitude in points:
+        key = coordinate_key(longitude, latitude)
+        existing = result.get(key)
+        if existing and existing[0] != identifier:
+            raise SafetyInputError(f"Crosswalk nodes share a coordinate with different IDs: {existing[0]}/{identifier}")
+        result[key] = (identifier, longitude, latitude)
+    return result
+
+
+def selected_crosswalk_nodes(
     route_coordinates: list[list[float]],
-    selected_links: Iterable[CrosswalkLink],
+    node_index: dict[tuple[float, float], tuple[str, float, float]],
+) -> list[tuple[str, float, float]]:
+    selected: dict[str, tuple[str, float, float]] = {}
+    for coordinate in route_coordinates:
+        try:
+            longitude, latitude = float(coordinate[0]), float(coordinate[1])
+        except (IndexError, TypeError, ValueError) as exc:
+            raise SafetyInputError("Route contains an invalid coordinate.") from exc
+        node = node_index.get(coordinate_key(longitude, latitude))
+        if node:
+            selected[node[0]] = node
+    return [selected[identifier] for identifier in sorted(selected)]
+
+
+def clustered_crosswalk_nodes(
+    nodes: list[tuple[str, float, float]],
+    *,
+    cluster_distance_m: float,
+) -> list[list[tuple[str, float, float]]]:
+    """Group duplicate source nodes belonging to one visual crossing event."""
+    parents = list(range(len(nodes)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(first: int, second: int) -> None:
+        root_first, root_second = find(first), find(second)
+        if root_first != root_second:
+            parents[root_second] = root_first
+
+    for index, node in enumerate(nodes):
+        for previous_index, previous in enumerate(nodes[:index]):
+            if haversine_meters((node[1], node[2]), (previous[1], previous[2])) <= cluster_distance_m:
+                union(index, previous_index)
+
+    grouped: dict[int, list[tuple[str, float, float]]] = defaultdict(list)
+    for index, node in enumerate(nodes):
+        grouped[find(index)].append(node)
+    return [grouped[key] for key in sorted(grouped)]
+
+
+def candidate_signals(
+    route_coordinates: list[list[float]],
     signal_index: dict[tuple[int, int], list[tuple[str, float, float]]],
     *,
     threshold_m: float,
-) -> list[str]:
-    """Return signals located at a crossing link used by the selected route."""
-    links = tuple(selected_links)
-    if not links:
-        return []
-    candidates: dict[str, tuple[float, float]] = {}
+) -> list[tuple[str, float, float]]:
+    candidates: dict[str, tuple[str, float, float]] = {}
     for cell in candidate_cells(route_coordinates, threshold_m=threshold_m, grid_degrees=DEFAULT_GRID_DEGREES):
-        for identifier, longitude, latitude in signal_index.get(cell, []):
-            candidates.setdefault(identifier, (longitude, latitude))
-    return sorted(
-        identifier
-        for identifier, (longitude, latitude) in candidates.items()
-        if any(distance_to_link_meters(longitude, latitude, link) <= threshold_m for link in links)
-    )
+        for signal in signal_index.get(cell, []):
+            candidates[signal[0]] = signal
+    return [candidates[identifier] for identifier in sorted(candidates)]
+
+
+def crossing_events(
+    groups: list[list[tuple[str, float, float]]],
+    signals: list[tuple[str, float, float]],
+    *,
+    signal_match_threshold_m: float,
+) -> list[dict[str, Any]]:
+    events = []
+    assigned_signal_ids: set[str] = set()
+    for group in groups:
+        event_signals = []
+        for signal_id, signal_longitude, signal_latitude in signals:
+            if signal_id in assigned_signal_ids:
+                continue
+            if any(
+                haversine_meters((signal_longitude, signal_latitude), (longitude, latitude)) <= signal_match_threshold_m
+                for _, longitude, latitude in group
+            ):
+                event_signals.append({
+                    "id": signal_id,
+                    "longitude": round(signal_longitude, COORDINATE_DECIMALS),
+                    "latitude": round(signal_latitude, COORDINATE_DECIMALS),
+                })
+                assigned_signal_ids.add(signal_id)
+        # Keep a stable route-event key while retaining every raw source node
+        # as diagnostics. The midpoint is for one uncluttered map marker.
+        link_id = "node:" + "+".join(node[0] for node in group)
+        events.append({
+            "crosswalk_event_id": link_id,
+            "longitude": round(sum(node[1] for node in group) / len(group), COORDINATE_DECIMALS),
+            "latitude": round(sum(node[2] for node in group) / len(group), COORDINATE_DECIMALS),
+            "pedestrian_signals": event_signals,
+        })
+    return events
 
 
 def attach_crossing_events(
     collection: dict[str, Any],
     *,
-    links: dict[str, CrosswalkLink],
-    crosswalk_segment_index: dict[tuple[tuple[float, float], tuple[float, float]], set[str]],
-    safety_points: dict[str, list[tuple[str, float, float]]],
+    crosswalk_nodes: dict[tuple[float, float], tuple[str, float, float]],
+    signal_index: dict[tuple[int, int], list[tuple[str, float, float]]],
     signal_match_threshold_m: int,
+    event_cluster_distance_m: int,
     calculated_at: str,
 ) -> dict[str, int]:
-    """Replace crosswalk/signal proximity counts with true crossing events."""
-    safety_index = indexed_points(safety_points, DEFAULT_GRID_DEGREES)
-    signal_points_by_id = {identifier: (longitude, latitude) for identifier, longitude, latitude in safety_points["signal"]}
     totals = {"crosswalk": 0, "signal": 0, "cctv": 0}
     for feature_index, feature in enumerate(collection["features"]):
         geometry = feature.get("geometry")
@@ -158,82 +178,55 @@ def attach_crossing_events(
         if not isinstance(properties, dict) or not isinstance(geometry, dict) or geometry.get("type") != "LineString" or not isinstance(coordinates, list) or len(coordinates) < 2:
             raise SafetyInputError(f"Route feature {feature_index}: valid LineString and properties are required.")
         route_coordinates = [[float(coordinate[0]), float(coordinate[1])] for coordinate in coordinates]
-        crossing_ids = sorted(selected_crosswalk_links(route_coordinates, crosswalk_segment_index))
-        selected_links = [links[link_id] for link_id in crossing_ids]
-        signal_ids = selected_signal_ids(
-            route_coordinates,
-            selected_links,
-            safety_index["signal"],
-            threshold_m=signal_match_threshold_m,
+        groups = clustered_crosswalk_nodes(
+            selected_crosswalk_nodes(route_coordinates, crosswalk_nodes),
+            cluster_distance_m=event_cluster_distance_m,
         )
-        # CCTV is not a crossing event. Preserve its already-precomputed
-        # route-adjacent value rather than doing another full spatial batch.
+        events = crossing_events(
+            groups,
+            candidate_signals(route_coordinates, signal_index, threshold_m=signal_match_threshold_m),
+            signal_match_threshold_m=signal_match_threshold_m,
+        )
         cctv_count = properties.get("cctv_location_count")
-        if cctv_count is None:
-            raise SafetyInputError(
-                f"Route feature {feature_index}: cctv_location_count is required from the existing safety batch."
-            )
         try:
             cctv_count = int(cctv_count)
         except (TypeError, ValueError) as exc:
-            raise SafetyInputError(f"Route feature {feature_index}: cctv_location_count must be an integer.") from exc
+            raise SafetyInputError(f"Route feature {feature_index}: cctv_location_count from the existing batch is required.") from exc
         if cctv_count < 0:
             raise SafetyInputError(f"Route feature {feature_index}: cctv_location_count must not be negative.")
-        signal_sets = {link_id: [] for link_id in crossing_ids}
-        for signal_id in signal_ids:
-            # A signal can control more than one nearby crossing.  Assign it
-            # to its closest traversed crossing solely for map presentation;
-            # the route-level count remains distinct by signal ID.
-            signal_point = signal_points_by_id[signal_id]
-            closest_link = min(
-                selected_links,
-                key=lambda link: distance_to_link_meters(signal_point[0], signal_point[1], link),
-            )
-            signal_sets[closest_link.link_id].append({
-                "id": signal_id,
-                "longitude": round(signal_point[0], COORDINATE_DECIMALS),
-                "latitude": round(signal_point[1], COORDINATE_DECIMALS),
-            })
-        events = [
-            {
-                "crosswalk_link_id": link.link_id,
-                "longitude": round(link.midpoint[0], COORDINATE_DECIMALS),
-                "latitude": round(link.midpoint[1], COORDINATE_DECIMALS),
-                "pedestrian_signals": signal_sets[link.link_id],
-            }
-            for link in selected_links
-        ]
+        signal_count = sum(len(event["pedestrian_signals"]) for event in events)
         properties.update({
             "safety_match_threshold_m": None,
-            "crosswalk_count": len(crossing_ids),
-            "pedestrian_signal_count": len(signal_ids),
+            "crosswalk_count": len(events),
+            "pedestrian_signal_count": signal_count,
             "cctv_location_count": cctv_count,
             "route_crossing_events": events,
             "safety_calculation_version": CALCULATION_VERSION,
             "safety_calculated_at": calculated_at,
         })
-        totals["crosswalk"] += len(crossing_ids)
-        totals["signal"] += len(signal_ids)
+        totals["crosswalk"] += len(events)
+        totals["signal"] += signal_count
         totals["cctv"] += cctv_count
     return totals
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Pre-compute actual crossing and crossing-signal events for stored walking routes.")
+    parser = argparse.ArgumentParser(description="Pre-compute actual crosswalk-node events for stored walking routes.")
     parser.add_argument("--input", type=Path, action="append", required=True, help="Route GeoJSON; repeat for each input export.")
-    parser.add_argument("--walking-links", type=Path, required=True, help="OA-21208 walking-links GeoJSON containing the crosswalk flag.")
     parser.add_argument("--safety-points", type=Path, required=True, help="Local JSON containing crosswalk, signal, and CCTV point coordinates.")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--signal-match-threshold-m", type=int, default=DEFAULT_SIGNAL_MATCH_THRESHOLD_M)
+    parser.add_argument("--event-cluster-distance-m", type=int, default=DEFAULT_EVENT_CLUSTER_DISTANCE_M)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    if args.signal_match_threshold_m <= 0:
-        raise SafetyInputError("signal-match-threshold-m must be positive.")
+    if args.signal_match_threshold_m <= 0 or args.event_cluster_distance_m <= 0:
+        raise SafetyInputError("safety thresholds must be positive.")
     safety_points = load_safety_points(args.safety_points)
-    links, segment_index = load_crosswalk_link_index(args.walking_links)
+    crosswalk_nodes = crosswalk_node_index(safety_points["crosswalk"])
+    signal_index = indexed_points({"signal": safety_points["signal"]}, DEFAULT_GRID_DEGREES)["signal"]
     calculated_at = datetime.now(ZoneInfo("Asia/Seoul")).isoformat()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     outputs = []
@@ -241,10 +234,10 @@ def main() -> int:
         collection = load_feature_collection(input_path)
         totals = attach_crossing_events(
             collection,
-            links=links,
-            crosswalk_segment_index=segment_index,
-            safety_points=safety_points,
+            crosswalk_nodes=crosswalk_nodes,
+            signal_index=signal_index,
             signal_match_threshold_m=args.signal_match_threshold_m,
+            event_cluster_distance_m=args.event_cluster_distance_m,
             calculated_at=calculated_at,
         )
         output_path = args.output_dir / input_path.name
@@ -254,8 +247,9 @@ def main() -> int:
         if source_metadata.is_file():
             metadata = json.loads(source_metadata.read_text(encoding="utf-8"))
             metadata["route_crossing_events"] = {
-                "crosswalk_source": "oa21208_walking_link_crosswalk_flag",
+                "crosswalk_source": "exact_crosswalk_node_on_oa21208_route",
                 "signal_match_threshold_m": args.signal_match_threshold_m,
+                "event_cluster_distance_m": args.event_cluster_distance_m,
                 "calculation_version": CALCULATION_VERSION,
                 "calculated_at": calculated_at,
                 "counts": totals,

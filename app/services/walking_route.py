@@ -58,7 +58,7 @@ def crossing_events_from_value(value: Any) -> list[WalkingRouteCrossingEvent] | 
         if not isinstance(event, Mapping):
             raise WalkingRouteDataError("Stored crossing event must be an object.")
         try:
-            link_id = str(event["crosswalk_link_id"]).strip()
+            event_id = str(event["crosswalk_event_id"]).strip()
             longitude = float(event["longitude"])
             latitude = float(event["latitude"])
             signals_value = event.get("pedestrian_signals", [])
@@ -82,8 +82,8 @@ def crossing_events_from_value(value: Any) -> list[WalkingRouteCrossingEvent] | 
             signal_ids.append(signal_id)
             signals.append(WalkingRoutePedestrianSignal(id=signal_id, longitude=signal_longitude, latitude=signal_latitude))
         if (
-            not link_id
-            or link_id in seen_link_ids
+            not event_id
+            or event_id in seen_link_ids
             or not -180 <= longitude <= 180
             or not -90 <= latitude <= 90
             or any(not signal_id for signal_id in signal_ids)
@@ -91,10 +91,10 @@ def crossing_events_from_value(value: Any) -> list[WalkingRouteCrossingEvent] | 
             or seen_signal_ids.intersection(signal_ids)
         ):
             raise WalkingRouteDataError("Stored crossing event is invalid or duplicated.")
-        seen_link_ids.add(link_id)
+        seen_link_ids.add(event_id)
         seen_signal_ids.update(signal_ids)
         events.append(WalkingRouteCrossingEvent(
-            crosswalk_link_id=link_id,
+            crosswalk_event_id=event_id,
             longitude=longitude,
             latitude=latitude,
             pedestrian_signals=signals,

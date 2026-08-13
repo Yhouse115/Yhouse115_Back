@@ -81,14 +81,14 @@ def parse_route_crossing_events(value: Any, *, feature_index: int) -> list[dict[
     for event_index, event in enumerate(value):
         if not isinstance(event, Mapping):
             raise RouteInputError(f"Feature {feature_index}: route_crossing_events[{event_index}] must be an object.")
-        link_id = str(event.get("crosswalk_link_id") or "").strip()
+        event_id = str(event.get("crosswalk_event_id") or "").strip()
         try:
             longitude = float(event["longitude"])
             latitude = float(event["latitude"])
         except (KeyError, TypeError, ValueError) as exc:
             raise RouteInputError(f"Feature {feature_index}: crossing event coordinate is invalid.") from exc
         signals_value = event.get("pedestrian_signals", [])
-        if not link_id or link_id in seen_link_ids or not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
+        if not event_id or event_id in seen_link_ids or not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
             raise RouteInputError(f"Feature {feature_index}: crossing event is invalid or duplicated.")
         if not isinstance(signals_value, list):
             raise RouteInputError(f"Feature {feature_index}: pedestrian_signals must be an array.")
@@ -111,10 +111,10 @@ def parse_route_crossing_events(value: Any, *, feature_index: int) -> list[dict[
             raise RouteInputError(f"Feature {feature_index}: crossing event signal IDs must be unique.")
         if seen_signal_ids.intersection(signal_ids):
             raise RouteInputError(f"Feature {feature_index}: a pedestrian signal can belong to only one crossing event.")
-        seen_link_ids.add(link_id)
+        seen_link_ids.add(event_id)
         seen_signal_ids.update(signal_ids)
         events.append({
-            "crosswalk_link_id": link_id,
+            "crosswalk_event_id": event_id,
             "longitude": longitude,
             "latitude": latitude,
             "pedestrian_signals": signals,
