@@ -90,9 +90,9 @@ comment on column public.environment_feature.scope_role is
     'yangcheon for the primary product area; boundary_support only for an external facility needed to explain a nearest-access result.';
 
 create table if not exists public.complex_feature_access (
-    -- Existing public.kreb_apt_complex_basic_20250918_yangcheon is the
-    -- apartment master. Loaders convert their source CX-* ID through
-    -- reb_complex_id before inserting this KREB complex ID.
+    -- Existing public.apartment_complex is the map-serving apartment master.
+    -- Its CX-* complex_id is retained end-to-end in walking outputs and API
+    -- responses. KREB tables remain raw/reference inputs, not this key.
     complex_id text not null,
     feature_id text not null references public.environment_feature (feature_id),
     access_group text not null,

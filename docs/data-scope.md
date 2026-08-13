@@ -32,9 +32,10 @@ the following normalized serving tables instead:
 - `complex_environment_summary` stores the card-ready nearest facility and
   count facts.
 
-`kreb_apt_complex_basic_20250918_yangcheon` is the apartment master. The
-walking outputs originally keyed by `CX-*` must be mapped through
-`reb_complex_id` before they are stored or served as a complex ID.
+`apartment_complex` is the map-serving apartment master. Its `CX-*`
+`complex_id` is retained in walking outputs and API responses. The
+`kreb_apt_complex_basic_20250918_yangcheon` table remains a raw/reference
+source and is not used as the environment API identifier.
 
 The five card axes are `transport`, `parks_play`, `medical`,
 `education_care`, and `convenience`. `safety` is stored as a map-only facility

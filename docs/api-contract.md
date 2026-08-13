@@ -7,9 +7,10 @@
 ## Apartment Environment Map MVP
 
 The current map scope is Yangcheon-gu. Apartment identifiers are the existing
-KREB `complex_id` values from `kreb_apt_complex_basic_20250918_yangcheon`.
-The API reads pre-computed walking results from serving tables; it does not
-calculate route distance from feature coordinates on a request.
+`CX-*` `complex_id` values from `apartment_complex`, the map-serving apartment
+master. KREB tables remain raw/reference inputs. The API reads pre-computed
+walking results from serving tables; it does not calculate route distance from
+feature coordinates on a request.
 
 ### `GET /api/v1/map/complexes?district=yangcheon`
 
