@@ -82,3 +82,29 @@ class WalkingRouteRepository:
             if feature_id and feature_id not in latest:
                 latest[feature_id] = row
         return latest
+
+    async def get_latest_access_summaries(
+        self,
+        *,
+        complex_id: str,
+        access_group: str,
+        main_origin_id: str = "complex_center",
+    ) -> dict[str, dict[str, Any]]:
+        """Return compact walking facts when a route geometry is intentionally absent."""
+        rows = await self._get(
+            "complex_feature_access",
+            {
+                "select": "feature_id,walk_distance_m,walk_time_min,reference_date,loaded_at,calculation_version",
+                "complex_id": f"eq.{complex_id}",
+                "access_group": f"eq.{access_group}",
+                "main_origin_id": f"eq.{main_origin_id}",
+                "access_status": "eq.available",
+                "order": "feature_id,reference_date.desc.nullslast,loaded_at.desc,calculation_version.desc",
+            },
+        )
+        latest: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            feature_id = str(row.get("feature_id") or "")
+            if feature_id and feature_id not in latest:
+                latest[feature_id] = row
+        return latest

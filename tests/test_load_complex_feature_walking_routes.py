@@ -90,3 +90,17 @@ def test_loader_rejects_routes_at_or_above_one_point_five_kilometers(tmp_path: P
             calculation_version="test-v1",
             calculated_at="2026-08-13T16:35:43+09:00",
         )
+
+
+def test_loader_accepts_a_three_kilometer_park_route_when_explicitly_allowed(tmp_path: Path) -> None:
+    geojson_path = tmp_path / "park-routes.geojson"
+    write_geojson(geojson_path, distance=2999.9)
+
+    rows = route_rows_from_geojson(
+        geojson_path,
+        calculation_version="test-v1",
+        calculated_at="2026-08-13T16:35:43+09:00",
+        max_stored_walk_distance_m=3000,
+    )
+
+    assert rows[0]["walk_distance_m"] == 2999.9

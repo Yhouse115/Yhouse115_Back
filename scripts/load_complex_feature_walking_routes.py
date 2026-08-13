@@ -17,7 +17,7 @@ from typing import Any
 SUPPORTED_ACCESS_GROUPS = {"elementary_school", "childcare", "kindergarten", "park", "medical_clinic"}
 DEFAULT_CALCULATION_VERSION = "oa21208_yangcheon_guro_extended_20260811_center_v2"
 DEFAULT_MAIN_ORIGIN_ID = "complex_center"
-MAX_STORED_WALK_DISTANCE_M = 1500.0
+DEFAULT_MAX_STORED_WALK_DISTANCE_M = 1500.0
 UPSERT_COLUMNS = (
     "complex_id,feature_id,access_group,main_origin_id,calculation_version"
 )
@@ -74,6 +74,7 @@ def route_rows_from_geojson(
     calculation_version: str,
     calculated_at: str,
     main_origin_id: str = DEFAULT_MAIN_ORIGIN_ID,
+    max_stored_walk_distance_m: float = DEFAULT_MAX_STORED_WALK_DISTANCE_M,
 ) -> list[dict[str, Any]]:
     collection = load_json_object(geojson_path)
     features = collection.get("features")
@@ -107,9 +108,9 @@ def route_rows_from_geojson(
             walk_time_min = float(properties["walk_time_min"])
         except (KeyError, TypeError, ValueError) as exc:
             raise RouteInputError(f"Feature {index}: valid walking distance and time are required.") from exc
-        if not 0 <= walk_distance_m < MAX_STORED_WALK_DISTANCE_M or walk_time_min < 0:
+        if not 0 <= walk_distance_m < max_stored_walk_distance_m or walk_time_min < 0:
             raise RouteInputError(
-                f"Feature {index}: only non-negative routes below {MAX_STORED_WALK_DISTANCE_M:g} m may be loaded."
+                f"Feature {index}: only non-negative routes below {max_stored_walk_distance_m:g} m may be loaded."
             )
 
         row_main_origin_id = str(properties.get("main_origin_id") or properties.get("origin_method") or main_origin_id)
@@ -215,6 +216,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--calculation-version", default=DEFAULT_CALCULATION_VERSION)
     parser.add_argument("--calculated-at", help="ISO-8601 timestamp; defaults to metadata.executed_at.")
     parser.add_argument("--main-origin-id", default=DEFAULT_MAIN_ORIGIN_ID)
+    parser.add_argument(
+        "--max-stored-walk-distance-m",
+        type=float,
+        default=DEFAULT_MAX_STORED_WALK_DISTANCE_M,
+        help="Reject route rows at or beyond this walk distance (default: 1500 m).",
+    )
     parser.add_argument("--batch-size", type=int, default=200)
     parser.add_argument("--apply", action="store_true", help="Write to Supabase. Omit for validation-only dry run.")
     return parser.parse_args()
@@ -224,6 +231,8 @@ def main() -> int:
     args = parse_args()
     if args.batch_size < 1 or args.batch_size > 1_000:
         raise RouteInputError("batch_size must be between 1 and 1000.")
+    if args.max_stored_walk_distance_m <= 0:
+        raise RouteInputError("max-stored-walk-distance-m must be positive.")
     metadata_path = args.metadata or args.input.with_name(args.input.stem + "_metadata.json")
     metadata = load_json_object(metadata_path)
     calculated_at = parse_calculated_at(args.calculated_at or str(metadata.get("executed_at") or ""))
@@ -232,6 +241,7 @@ def main() -> int:
         calculation_version=args.calculation_version,
         calculated_at=calculated_at,
         main_origin_id=args.main_origin_id,
+        max_stored_walk_distance_m=args.max_stored_walk_distance_m,
     )
     if args.apply:
         upsert_rows(rows, batch_size=args.batch_size)

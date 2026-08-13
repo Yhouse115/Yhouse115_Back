@@ -463,9 +463,10 @@ class FamilyMapService:
         route_feature_ids = [
             stored_walking_route_feature_id(feature)
             for feature in features
-            if feature.source in {"elementary_schools", "education_care", "environment_parks", "environment_medical"}
+            if feature.source in {"elementary_schools", "education_care", "environment_parks"}
         ]
-        if not route_feature_ids:
+        medical_feature_exists = any(feature.source == "environment_medical" for feature in features)
+        if not route_feature_ids and not medical_feature_exists:
             return
         repository = self.walking_route_repository
         if repository is None:
@@ -473,15 +474,28 @@ class FamilyMapService:
                 repository = WalkingRouteRepository()
             except RuntimeError:
                 return
-        try:
-            summaries = await repository.get_latest_route_summaries(
-                complex_id=complex_id,
-                feature_ids=route_feature_ids,
-            )
-        except RuntimeError:
-            return
+        summaries: dict[str, dict[str, object]] = {}
+        if route_feature_ids:
+            try:
+                summaries = await repository.get_latest_route_summaries(
+                    complex_id=complex_id,
+                    feature_ids=route_feature_ids,
+                )
+            except RuntimeError:
+                pass
+        compact_summaries: dict[str, dict[str, object]] = {}
+        compact_summary_reader = getattr(repository, "get_latest_access_summaries", None)
+        if medical_feature_exists and compact_summary_reader:
+            try:
+                compact_summaries = await compact_summary_reader(
+                    complex_id=complex_id,
+                    access_group="medical_clinic",
+                )
+            except RuntimeError:
+                pass
         for feature in features:
-            summary = summaries.get(stored_walking_route_feature_id(feature))
+            feature_id = stored_walking_route_feature_id(feature)
+            summary = summaries.get(feature_id) or compact_summaries.get(feature_id)
             if not summary:
                 continue
             try:
