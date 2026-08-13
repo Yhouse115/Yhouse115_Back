@@ -264,14 +264,18 @@ def dedupe_visual_crosswalks(features: List[MapFeature]) -> List[MapFeature]:
 
 
 def cluster_grid_meters(zoom: int) -> int:
+    if zoom <= 11:
+        return 2000
+    if zoom <= 12:
+        return 1000
     if zoom <= 13:
-        return 600
+        return 500
     if zoom <= 14:
-        return 360
+        return 250
     if zoom <= 15:
-        return 320
+        return 150
     if zoom <= 16:
-        return 160
+        return 100
     return 0
 
 
@@ -286,7 +290,7 @@ def cluster_features_for_zoom(features: List[MapFeature], zoom: int) -> List[Map
         lng_grid = grid_meters / (111320 * math.cos(math.radians(feature.latitude)))
         lat_key = round(feature.latitude / lat_grid)
         lng_key = round(feature.longitude / lng_grid)
-        key = f"{feature.category}:{lat_key}:{lng_key}"
+        key = f"{lat_key}:{lng_key}"
         buckets.setdefault(key, []).append(feature)
 
     clustered: List[MapFeature] = []
@@ -303,13 +307,13 @@ def cluster_features_for_zoom(features: List[MapFeature], zoom: int) -> List[Map
                 id=f"cluster:{key}",
                 category=category,
                 source="cluster",
-                name=f"{category} {len(bucket)}",
+                name=f"{len(bucket)}개 지점",
                 latitude=latitude,
                 longitude=longitude,
                 address=None,
                 distance_m=None,
                 geometry=None,
-                metadata={"count": len(bucket)},
+                metadata={"count": len(bucket), "grid_meters": grid_meters},
             )
         )
     return clustered
