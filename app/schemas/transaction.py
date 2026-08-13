@@ -78,3 +78,36 @@ class TradeListResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: TradeListData
+
+
+# --- API #4: Rent List (/transactions/rents) ---
+class RentItemDTO(BaseModel):
+    rentId: str
+    pnu: Optional[str] = None
+    dealDate: Optional[str] = None
+    rentType: Optional[str] = None
+    buildingType: Optional[str] = None
+    aptName: Optional[str] = None
+    adminDongCode: Optional[str] = None
+    adminDongName: Optional[str] = None
+    legalDongCode: Optional[str] = None
+    legalDongName: Optional[str] = None
+    jibunAddress: Optional[str] = None
+    jibun: Optional[str] = None
+    floor: Optional[int] = None
+    exclArea: Optional[float] = None
+    deposit: Optional[int] = None
+    monthlyRent: Optional[int] = None
+    contractPeriod: Optional[str] = None
+    useRrRight: Optional[str] = None
+
+
+class RentListData(BaseModel):
+    pagination: PaginationDTO
+    items: List[RentItemDTO]
+
+
+class RentListResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: RentListData
