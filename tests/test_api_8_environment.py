@@ -126,7 +126,7 @@ def teardown_function() -> None:
     app.dependency_overrides.clear()
 
 
-def test_list_map_complexes_exposes_stable_marker_contract() -> None:
+def test_get_map_complexes() -> None:
     response = client_for(FakeEnvironmentService()).get("/api/v1/map/complexes?district=yangcheon")
 
     assert response.status_code == 200
@@ -144,7 +144,7 @@ def test_list_map_complexes_exposes_stable_marker_contract() -> None:
     ]
 
 
-def test_environment_summary_always_returns_five_axes_in_display_order() -> None:
+def test_get_complex_environment() -> None:
     response = client_for(FakeEnvironmentService()).get("/api/v1/complexes/CX-001/environment")
 
     assert response.status_code == 200
@@ -159,7 +159,7 @@ def test_environment_summary_always_returns_five_axes_in_display_order() -> None
     assert summary[-1]["status"] == "available"
 
 
-def test_axis_features_passes_axis_and_limit_without_combining_axes() -> None:
+def test_get_environment_features() -> None:
     service = FakeEnvironmentService()
 
     response = client_for(service).get("/api/v1/complexes/CX-001/environment/features?axis=medical&limit=20")
@@ -172,7 +172,7 @@ def test_axis_features_passes_axis_and_limit_without_combining_axes() -> None:
     assert body["items"][0]["source"]["referenceDate"] == "2026-07-31"
 
 
-def test_invalid_district_uses_stable_error_shape() -> None:
+def test_get_map_complexes_rejects_unsupported_district() -> None:
     response = client_for(FakeEnvironmentService()).get("/api/v1/map/complexes?district=gangseo")
 
     assert response.status_code == 422
@@ -181,7 +181,7 @@ def test_invalid_district_uses_stable_error_shape() -> None:
     assert body["details"] == [{"field": "district", "reason": "unsupported_value"}]
 
 
-def test_unknown_complex_returns_not_found() -> None:
+def test_get_complex_environment_returns_not_found() -> None:
     response = client_for(FakeEnvironmentService(known_complex=False)).get("/api/v1/complexes/CX-MISSING/environment")
 
     assert response.status_code == 404
