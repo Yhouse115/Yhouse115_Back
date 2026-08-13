@@ -25,6 +25,16 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    @application.get("/demo")
+    async def get_demo_dashboard():
+        from fastapi.responses import HTMLResponse
+        import os
+        me_html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".me", "api_test_dashboard.html"))
+        if os.path.exists(me_html_path):
+            with open(me_html_path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        return HTMLResponse(content="<h1>Debugging dashboard HTML not found</h1>", status_code=404)
+
     application.include_router(health_router)
     application.include_router(health_router, prefix=settings.api_prefix)
     application.include_router(system_router, prefix=settings.api_prefix)
