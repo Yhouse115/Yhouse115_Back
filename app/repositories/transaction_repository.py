@@ -1,4 +1,5 @@
-from typing import Any, Dict, List, Optional
+from datetime import date
+from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 
 
@@ -53,3 +54,44 @@ class TransactionRepository:
         """
         fb_rows = await conn.fetch(fallback_query, admin_dong_code)
         return [dict(r) for r in fb_rows]
+
+    @staticmethod
+    async def get_monthly_transaction_counts(
+        conn: asyncpg.Connection,
+        admin_dong_code: str,
+        period_start: date,
+        period_end: date
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        trade_query = """
+            SELECT 
+                TO_CHAR(t.deal_date, 'YYYY-MM') AS year_month,
+                t.house_type,
+                COUNT(*) AS count
+            FROM public.transaction_trades t
+            LEFT JOIN public.residential_buildings b_exact ON t.pnu = b_exact.pnu
+            LEFT JOIN public.residential_buildings b_main ON SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b_main.pnu, 1, 15) || '0000'
+            WHERE (t.admin_dong_code = $1 OR COALESCE(b_exact.admin_dong_code, b_main.admin_dong_code) = $1)
+              AND t.deal_date >= $2
+              AND t.deal_date <= $3
+              AND t.cancel_deal_day IS NULL
+            GROUP BY TO_CHAR(t.deal_date, 'YYYY-MM'), t.house_type;
+        """
+        trade_rows = await conn.fetch(trade_query, admin_dong_code, period_start, period_end)
+
+        rent_query = """
+            SELECT 
+                TO_CHAR(r.deal_date, 'YYYY-MM') AS year_month,
+                r.house_type,
+                r.rent_type,
+                COUNT(*) AS count
+            FROM public.transaction_rents r
+            LEFT JOIN public.residential_buildings b_exact ON r.pnu = b_exact.pnu
+            LEFT JOIN public.residential_buildings b_main ON SUBSTR(r.pnu, 1, 15) || '0000' = SUBSTR(b_main.pnu, 1, 15) || '0000'
+            WHERE (r.admin_dong_code = $1 OR COALESCE(b_exact.admin_dong_code, b_main.admin_dong_code) = $1)
+              AND r.deal_date >= $2
+              AND r.deal_date <= $3
+            GROUP BY TO_CHAR(r.deal_date, 'YYYY-MM'), r.house_type, r.rent_type;
+        """
+        rent_rows = await conn.fetch(rent_query, admin_dong_code, period_start, period_end)
+
+        return [dict(r) for r in trade_rows], [dict(r) for r in rent_rows]
