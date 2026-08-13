@@ -24,6 +24,25 @@ curl http://localhost:8000/health
 pytest
 ```
 
+## Yangcheon environment serving data
+
+The apartment environment map currently serves Yangcheon-gu only. Apply the
+environment migrations in order to create the following serving tables:
+
+- `source_dataset`: source provenance and reference metadata.
+- `environment_feature`: normalized facilities for map rendering.
+- `complex_feature_access`: pre-computed walking access from a complex to a facility.
+- `complex_environment_summary`: pre-computed card facts for a complex.
+
+The apartment master remains `kreb_apt_complex_basic_20250918_yangcheon`.
+Environment access loaders must convert their source `CX-*` IDs through
+`reb_complex_id` before writing `complex_feature_access` or
+`complex_environment_summary`.
+
+Do not use an environment loader in production until it performs that KREB ID
+mapping and emits the public fifth-axis value `convenience`. Raw source files
+and generated local walking outputs stay outside this repository.
+
 ## Docker Compose
 
 백엔드 레포에서 전체 로컬 스택 실행:
