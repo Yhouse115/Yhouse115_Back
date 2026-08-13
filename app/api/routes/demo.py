@@ -14,56 +14,61 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-color: #0b0f19;
-      --card-bg: rgba(22, 29, 45, 0.9);
-      --card-border: rgba(255, 255, 255, 0.1);
-      --accent-color: #3b82f6;
-      --accent-hover: #2563eb;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
-      --success-color: #10b981;
-      --code-bg: #030712;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --accent-color: #2563eb;
+      --accent-hover: #1d4ed8;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --success-color: #16a34a;
+      --code-bg: #1e293b;
+      --code-text: #f8fafc;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif; }
-    body { background-color: var(--bg-color); color: var(--text-main); padding: 24px; max-width: 1200px; margin: 0 auto; line-height: 1.5; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); padding: 24px; max-width: 1240px; margin: 0 auto; line-height: 1.5; }
 
-    header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--card-border); }
-    .header-title h1 { font-size: 1.6rem; font-weight: 700; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+    header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #cbd5e1; }
+    .header-title h1 { font-size: 1.6rem; font-weight: 700; color: #1e293b; }
     .header-title p { font-size: 0.9rem; color: var(--text-muted); margin-top: 4px; }
 
+    /* Admin Dong Quick Reference Box */
+    .dong-ref-card { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; }
+    .dong-ref-title { font-size: 0.875rem; font-weight: 700; color: #1e40af; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .dong-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dong-chip { background: #ffffff; border: 1px solid #93c5fd; color: #1e3a8a; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+    .dong-chip:hover { background: #2563eb; color: #ffffff; border-color: #2563eb; transform: translateY(-1px); }
+
     /* Quick Nav */
-    .nav-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bg-color); padding: 8px 0; z-index: 10; }
-    .nav-link { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text-muted); text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 0.84rem; font-weight: 500; transition: all 0.2s; }
-    .nav-link:hover { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+    .nav-bar { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; position: sticky; top: 0; background: var(--bg-color); padding: 10px 0; z-index: 10; border-bottom: 1px solid #e2e8f0; }
+    .nav-link { background: #ffffff; border: 1px solid var(--card-border); color: #334155; text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: all 0.2s; }
+    .nav-link:hover { background: var(--accent-color); color: #ffffff; border-color: var(--accent-color); }
 
     /* Standalone API Section Card */
-    .api-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px; margin-bottom: 28px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3); }
-    .api-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid var(--card-border); padding-bottom: 12px; }
-    .api-title { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 10px; }
-    .method-badge { background: #10b981; color: #000; font-weight: 700; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; }
-    .endpoint-url { font-family: monospace; color: #60a5fa; font-size: 0.95rem; }
+    .api-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 20px; margin-bottom: 28px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05); }
+    .api-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #f1f5f9; padding-bottom: 12px; }
+    .api-title { font-size: 1.1rem; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 10px; }
+    .method-badge { background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; border: 1px solid #86efac; }
+    .endpoint-url { font-family: monospace; color: #2563eb; font-weight: 600; font-size: 0.95rem; }
 
     /* Form Layout */
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .form-group label { display: block; font-size: 0.8rem; font-weight: 500; color: var(--text-muted); margin-bottom: 4px; }
-    .form-control { width: 100%; background: #111827; border: 1px solid rgba(255, 255, 255, 0.15); color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 0.85rem; outline: none; }
-    .form-control:focus { border-color: var(--accent-color); }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: #475569; margin-bottom: 4px; }
+    .form-control { width: 100%; background: #ffffff; border: 1px solid #cbd5e1; color: #0f172a; padding: 8px 10px; border-radius: 6px; font-size: 0.85rem; outline: none; }
+    .form-control:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
 
-    .btn-exec { background: var(--accent-color); color: #fff; border: none; padding: 10px 20px; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn-exec { background: var(--accent-color); color: #ffffff; border: none; padding: 10px 22px; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
     .btn-exec:hover { background: var(--accent-hover); }
 
-    .quick-btn { background: rgba(255,255,255,0.08); border: 1px solid var(--card-border); color: var(--text-muted); padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; cursor: pointer; margin-top: 4px; margin-right: 4px; }
-    .quick-btn:hover { color: #fff; background: rgba(255,255,255,0.2); }
-
     /* Result Display */
-    .result-box { margin-top: 16px; background: var(--code-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; }
-    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted); }
-    .status-badge { font-weight: 600; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
-    .status-200 { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-    .status-err { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .result-box { margin-top: 16px; background: var(--code-bg); border: 1px solid #334155; border-radius: 8px; padding: 14px; }
+    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 0.8rem; color: #94a3b8; }
+    .status-badge { font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+    .status-200 { background: #dcfce7; color: #15803d; }
+    .status-err { background: #fee2e2; color: #b91c1c; }
 
-    pre { font-family: monospace; font-size: 0.8125rem; color: #e5e7eb; overflow-x: auto; max-height: 350px; white-space: pre-wrap; word-break: break-all; }
+    pre { font-family: monospace; font-size: 0.8125rem; color: var(--code-text); overflow-x: auto; max-height: 350px; white-space: pre-wrap; word-break: break-all; }
   </style>
 </head>
 <body>
@@ -71,9 +76,37 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
   <header>
     <div class="header-title">
       <h1>WhyHouse API Testing Page</h1>
-      <p>API #1 ~ API #5 독립형 개별 테스트 & 디버깅 페이지 (.me/api_dev.md 명세 기준)</p>
+      <p>API #1 ~ API #5 독립형 개별 테스트 & 디버깅 페이지 (밝은 테마 버전)</p>
     </div>
   </header>
+
+  <!-- Admin Dong Code Reference Bar -->
+  <div class="dong-ref-card">
+    <div class="dong-ref-title">
+      <span>📍 양천구 관할 행정동 코드 (클릭 시 전체 폼에 자동 입력)</span>
+      <span style="font-size:0.75rem; font-weight:400;">총 18개 행정동</span>
+    </div>
+    <div class="dong-grid">
+      <button type="button" class="dong-chip" onclick="applyDong('1147051000')">1147051000 (목1동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147052000')">1147052000 (목2동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147053000')">1147053000 (목3동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147054000')">1147054000 (목4동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147055000')">1147055000 (목5동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147062000')">1147062000 (신정1동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147063000')">1147063000 (신정2동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147064000')">1147064000 (신정3동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147065000')">1147065000 (신정4동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147066000')">1147066000 (신정6동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147067000')">1147067000 (신정7동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147056000')">1147056000 (신월1동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147057000')">1147057000 (신월2동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147058000')">1147058000 (신월3동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147059000')">1147059000 (신월4동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147060000')">1147060000 (신월5동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147061000')">1147061000 (신월6동)</button>
+      <button type="button" class="dong-chip" onclick="applyDong('1147061100')">1147061100 (신월7동)</button>
+    </div>
+  </div>
 
   <!-- Quick Nav -->
   <div class="nav-bar">
@@ -98,11 +131,6 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
         <div class="form-group">
           <label>admin_dong_code (행정동 10자리 코드)</label>
           <input type="text" id="api1_dong" class="form-control" value="1147051000">
-          <div>
-            <button type="button" class="quick-btn" onclick="document.getElementById('api1_dong').value='1147051000'; callApi1();">목1동</button>
-            <button type="button" class="quick-btn" onclick="document.getElementById('api1_dong').value='1147062000'; callApi1();">신정1동</button>
-            <button type="button" class="quick-btn" onclick="document.getElementById('api1_dong').value='1147064000'; callApi1();">신정3동</button>
-          </div>
         </div>
       </div>
       <button type="submit" class="btn-exec">API #1 요청 전송</button>
@@ -346,6 +374,14 @@ DEMO_HTML_CONTENT = """<!DOCTYPE html>
 
   <script>
     const API_BASE = window.location.origin;
+
+    function applyDong(code) {
+      document.getElementById("api1_dong").value = code;
+      document.getElementById("api2_dong").value = code;
+      document.getElementById("api3_dong").value = code;
+      document.getElementById("api4_dong").value = code;
+      document.getElementById("api5_dong").value = code;
+    }
 
     async function executeFetch(url, statusId, timeId, resultId) {
       const statusEl = document.getElementById(statusId);
