@@ -92,4 +92,17 @@ class WalkingRouteService:
             walk_time_minutes=float(row["walk_time_min"]),
             route_method=str(row["route_method"]),
             calculated_at=row["calculated_at"],
+            safety_match_threshold_meters=optional_count(row.get("safety_match_threshold_m")),
+            crosswalk_count=optional_count(row.get("crosswalk_count")),
+            pedestrian_signal_count=optional_count(row.get("pedestrian_signal_count")),
+            cctv_location_count=optional_count(row.get("cctv_location_count")),
         )
+
+
+def optional_count(value: Any) -> int | None:
+    if value is None:
+        return None
+    parsed = int(value)
+    if parsed < 0:
+        raise WalkingRouteDataError("Stored route has a negative safety count.")
+    return parsed

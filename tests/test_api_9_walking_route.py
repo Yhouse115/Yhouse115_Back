@@ -35,6 +35,10 @@ class FakeWalkingRouteService:
             walk_time_minutes=7.61,
             route_method="oa21208_dijkstra_geodesic_link_length_plus_snap_legs",
             calculated_at=datetime(2026, 8, 13, 16, 35, 43, tzinfo=UTC),
+            safety_match_threshold_meters=20,
+            crosswalk_count=4,
+            pedestrian_signal_count=1,
+            cctv_location_count=8,
         )
 
 
@@ -79,6 +83,10 @@ def test_get_walking_route_returns_render_ready_stored_coordinates() -> None:
         "walkTimeMinutes": 7.61,
         "routeMethod": "oa21208_dijkstra_geodesic_link_length_plus_snap_legs",
         "calculatedAt": "2026-08-13T16:35:43Z",
+        "safetyMatchThresholdMeters": 20,
+        "crosswalkCount": 4,
+        "pedestrianSignalCount": 1,
+        "cctvLocationCount": 8,
     }
 
 
@@ -122,6 +130,10 @@ def test_service_maps_latest_precomputed_route_without_calculation() -> None:
             "walk_time_min": "13.0",
             "route_method": "local_dijkstra",
             "calculated_at": "2026-08-13T16:35:43+09:00",
+            "safety_match_threshold_m": 20,
+            "crosswalk_count": 4,
+            "pedestrian_signal_count": 1,
+            "cctv_location_count": 8,
         }
     )
 
@@ -140,6 +152,8 @@ def test_service_maps_latest_precomputed_route_without_calculation() -> None:
     ]
     assert route.route_coordinates == [(126.87, 37.52), (126.88, 37.53)]
     assert route.walk_distance_meters == 910.2
+    assert route.crosswalk_count == 4
+    assert route.cctv_location_count == 8
 
 
 def test_coordinate_validation_rejects_wrong_geojson_position_order_or_shape() -> None:

@@ -51,6 +51,18 @@ def parse_qa_flags(value: Any) -> list[str]:
     raise RouteInputError("qa_flags must be a slash-delimited string or string array.")
 
 
+def parse_optional_nonnegative_int(value: Any, *, field: str, feature_index: int) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise RouteInputError(f"Feature {feature_index}: {field} must be a non-negative integer.") from exc
+    if parsed < 0:
+        raise RouteInputError(f"Feature {feature_index}: {field} must be a non-negative integer.")
+    return parsed
+
+
 def parse_calculated_at(value: str) -> str:
     try:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
@@ -138,6 +150,26 @@ def route_rows_from_geojson(
                     "accessDistanceDeltaMeters": properties.get("access_distance_delta_m"),
                 },
                 "qa_flags": parse_qa_flags(properties.get("qa_flags")),
+                "safety_match_threshold_m": parse_optional_nonnegative_int(
+                    properties.get("safety_match_threshold_m"),
+                    field="safety_match_threshold_m",
+                    feature_index=index,
+                ),
+                "crosswalk_count": parse_optional_nonnegative_int(
+                    properties.get("crosswalk_count"), field="crosswalk_count", feature_index=index
+                ),
+                "pedestrian_signal_count": parse_optional_nonnegative_int(
+                    properties.get("pedestrian_signal_count"), field="pedestrian_signal_count", feature_index=index
+                ),
+                "cctv_location_count": parse_optional_nonnegative_int(
+                    properties.get("cctv_location_count"), field="cctv_location_count", feature_index=index
+                ),
+                "safety_calculation_version": properties.get("safety_calculation_version") or None,
+                "safety_calculated_at": (
+                    parse_calculated_at(str(properties["safety_calculated_at"]))
+                    if properties.get("safety_calculated_at")
+                    else None
+                ),
             }
         )
     if not rows:

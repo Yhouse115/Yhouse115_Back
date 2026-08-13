@@ -76,6 +76,12 @@ def test_loader_builds_upsert_rows_from_local_geojson(tmp_path: Path) -> None:
                 "accessDistanceDeltaMeters": None,
             },
             "qa_flags": ["boundary_snap"],
+            "safety_match_threshold_m": None,
+            "crosswalk_count": None,
+            "pedestrian_signal_count": None,
+            "cctv_location_count": None,
+            "safety_calculation_version": None,
+            "safety_calculated_at": None,
         }
     ]
 
@@ -104,3 +110,29 @@ def test_loader_accepts_a_three_kilometer_park_route_when_explicitly_allowed(tmp
     )
 
     assert rows[0]["walk_distance_m"] == 2999.9
+
+
+def test_loader_keeps_precomputed_twenty_meter_safety_counts(tmp_path: Path) -> None:
+    geojson_path = tmp_path / "routes.geojson"
+    write_geojson(geojson_path)
+    collection = json.loads(geojson_path.read_text(encoding="utf-8"))
+    collection["features"][0]["properties"].update({
+        "safety_match_threshold_m": 20,
+        "crosswalk_count": 8,
+        "pedestrian_signal_count": 2,
+        "cctv_location_count": 11,
+        "safety_calculation_version": "route_safety_20m_v1",
+        "safety_calculated_at": "2026-08-14T01:00:00+09:00",
+    })
+    geojson_path.write_text(json.dumps(collection), encoding="utf-8")
+
+    row = route_rows_from_geojson(
+        geojson_path,
+        calculation_version="test-v1",
+        calculated_at="2026-08-13T16:35:43+09:00",
+    )[0]
+
+    assert row["safety_match_threshold_m"] == 20
+    assert row["crosswalk_count"] == 8
+    assert row["pedestrian_signal_count"] == 2
+    assert row["cctv_location_count"] == 11

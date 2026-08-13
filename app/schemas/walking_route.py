@@ -18,3 +18,7 @@ class WalkingRouteResponse(ApiModel):
     walk_time_minutes: float = Field(serialization_alias="walkTimeMinutes")
     route_method: str = Field(serialization_alias="routeMethod")
     calculated_at: datetime = Field(serialization_alias="calculatedAt")
+    safety_match_threshold_meters: int | None = Field(default=None, serialization_alias="safetyMatchThresholdMeters")
+    crosswalk_count: int | None = Field(default=None, serialization_alias="crosswalkCount")
+    pedestrian_signal_count: int | None = Field(default=None, serialization_alias="pedestrianSignalCount")
+    cctv_location_count: int | None = Field(default=None, serialization_alias="cctvLocationCount")

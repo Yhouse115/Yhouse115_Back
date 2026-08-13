@@ -44,7 +44,9 @@ class WalkingRouteRepository:
             {
                 "select": (
                     "complex_id,feature_id,access_group,main_origin_id,calculation_version,"
-                    "route_coordinates,walk_distance_m,walk_time_min,route_method,calculated_at"
+                    "route_coordinates,walk_distance_m,walk_time_min,route_method,calculated_at,"
+                    "safety_match_threshold_m,crosswalk_count,pedestrian_signal_count,"
+                    "cctv_location_count,safety_calculation_version,safety_calculated_at"
                 ),
                 "complex_id": f"eq.{complex_id}",
                 "feature_id": f"eq.{feature_id}",
