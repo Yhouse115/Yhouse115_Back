@@ -29,6 +29,9 @@ the following normalized serving tables instead:
   source record identity, status, and source-specific JSON attributes.
 - `complex_feature_access` stores selected, pre-computed walking-network access
   facts.
+- `complex_feature_walking_route` stores render-ready route coordinates for
+  selected complex-to-feature pairs. It is separate from the compact access
+  facts because geometry is only needed after a user selects a destination.
 - `complex_environment_summary` stores the card-ready nearest facility and
   count facts.
 
@@ -36,6 +39,11 @@ the following normalized serving tables instead:
 `complex_id` is retained in walking outputs and API responses. The
 `kreb_apt_complex_basic_20250918_yangcheon` table remains a raw/reference
 source and is not used as the environment API identifier.
+
+The nationwide `kreb_apt_complex_basic_20250918` import is intentionally not
+retained in the hosted database. The product scope is Yangcheon; its geocoded
+KREB subset is sufficient for reference and the nationwide source can be
+re-imported from the original dataset if a later expansion requires it.
 
 The five card axes are `transport`, `parks_play`, `medical`,
 `education_care`, and `convenience`. `safety` is stored as a map-only facility

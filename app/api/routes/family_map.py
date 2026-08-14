@@ -5,6 +5,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from app.schemas.family_map import (
+    ApartmentCompareRequest,
+    ApartmentCompareResponse,
     ApartmentSearchResponse,
     BoundsFeaturesResponse,
     NearbyFeaturesResponse,
@@ -17,11 +19,26 @@ router = APIRouter(prefix="/family-map", tags=["family-map"])
 @router.get("/apartments", response_model=ApartmentSearchResponse)
 async def search_apartments(
     q: Optional[str] = Query(default=None, description="Apartment name or address search term."),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=1000),
 ) -> ApartmentSearchResponse:
     service = FamilyMapService()
     items = await service.search_apartments(q, limit)
     return ApartmentSearchResponse(items=items)
+
+
+@router.post("/apartments/compare", response_model=ApartmentCompareResponse)
+async def compare_apartments(request: ApartmentCompareRequest) -> ApartmentCompareResponse:
+    service = FamilyMapService()
+    try:
+        return await service.compare_apartments(
+            base_apartment_id=request.base_apartment_id,
+            target_apartment_ids=request.target_apartment_ids,
+            radius_m=request.radius_m,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/apartments/{complex_id}/nearby", response_model=NearbyFeaturesResponse)

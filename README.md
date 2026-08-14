@@ -32,6 +32,7 @@ environment migrations in order to create the following serving tables:
 - `source_dataset`: source provenance and reference metadata.
 - `environment_feature`: normalized facilities for map rendering.
 - `complex_feature_access`: pre-computed walking access from a complex to a facility.
+- `complex_feature_walking_route`: pre-computed route coordinates for map rendering.
 - `complex_environment_summary`: pre-computed card facts for a complex.
 
 The `apartment_complex` table is the map-serving apartment master. Environment
@@ -43,6 +44,18 @@ source and must not replace that serving ID.
 Do not use an environment loader in production until it targets
 `apartment_complex` and emits the public fifth-axis value `convenience`. Raw
 source files and generated local walking outputs stay outside this repository.
+
+The route loader is validation-only unless `--apply` is supplied. For a local
+elementary-school or education-care export, first validate with:
+
+```powershell
+python scripts/load_complex_feature_walking_routes.py `
+  --input C:\Sec_3\data\processed\environment\complex_elementary_school_routes.geojson
+```
+
+For child-care centres and kindergartens, use
+`complex_education_care_routes.geojson`. Route exports contain pairs whose
+stored walking distance is below 1.5 km.
 
 ## Docker Compose
 

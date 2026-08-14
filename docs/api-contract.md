@@ -46,6 +46,20 @@ Safety facilities are retained in `environment_feature` with `axis=safety`
 for future map use. They are not part of the five-card summary and are not yet
 exposed by this endpoint.
 
+### `GET /api/v1/complexes/{complexId}/features/{featureId}/walking-route`
+
+Returns the latest pre-computed route geometry for one apartment complex and
+one elementary school, child-care centre, or kindergarten. `routeCoordinates` uses GeoJSON position order:
+`[[longitude, latitude], ...]`, and can be rendered directly as a map
+polyline. The response also includes the stored walking distance, walking time,
+route method, and calculation timestamp.
+
+Only `elementary_school`, `childcare`, `kindergarten`, and `park` pairs whose
+stored walking distance is below 1.5 km are loaded. A missing or out-of-policy pair
+returns `404 WALKING_ROUTE_NOT_FOUND`.
+The request is a table lookup: it must never run Dijkstra or call an external
+routing API.
+
 ## 📌 주요 REST API 목록 (API #1 ~ API #7)
 
 ### 1. `GET /summary/inventory`
