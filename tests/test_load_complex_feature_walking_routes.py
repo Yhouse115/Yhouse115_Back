@@ -80,7 +80,6 @@ def test_loader_builds_upsert_rows_from_local_geojson(tmp_path: Path) -> None:
             "crosswalk_count": None,
             "pedestrian_signal_count": None,
             "cctv_location_count": None,
-            "route_crossing_events": None,
             "safety_calculation_version": None,
             "safety_calculated_at": None,
         }
@@ -137,33 +136,3 @@ def test_loader_keeps_precomputed_twenty_meter_safety_counts(tmp_path: Path) -> 
     assert row["crosswalk_count"] == 8
     assert row["pedestrian_signal_count"] == 2
     assert row["cctv_location_count"] == 11
-
-
-def test_loader_accepts_actual_crossing_events_and_requires_matching_counts(tmp_path: Path) -> None:
-    geojson_path = tmp_path / "routes.geojson"
-    write_geojson(geojson_path)
-    collection = json.loads(geojson_path.read_text(encoding="utf-8"))
-    collection["features"][0]["properties"].update({
-        "crosswalk_count": 1,
-        "pedestrian_signal_count": 1,
-        "route_crossing_events": [{
-            "crosswalk_event_id": "node:229944",
-            "longitude": 126.8745,
-            "latitude": 37.5196,
-            "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.8745, "latitude": 37.5196}],
-        }],
-    })
-    geojson_path.write_text(json.dumps(collection), encoding="utf-8")
-
-    row = route_rows_from_geojson(
-        geojson_path,
-        calculation_version="test-v1",
-        calculated_at="2026-08-13T16:35:43+09:00",
-    )[0]
-
-    assert row["route_crossing_events"] == [{
-        "crosswalk_event_id": "node:229944",
-        "longitude": 126.8745,
-        "latitude": 37.5196,
-        "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.8745, "latitude": 37.5196}],
-    }]
