@@ -97,6 +97,28 @@ routing API.
 - **파라미터**: `pnu`, `building_name`, `admin_dong_code` (최소 1개 이상 필수)
 - **응답 래퍼**: `BuildingUnitsResponse` (미존재 시 404 `UNIT_TYPES_NOT_FOUND`)
 
+### 8. `GET /buildings/{pnu}/summary`
+- **설명**: 건축물(단지) 단위의 종합 데이터(단지 기본 정보, 세대당 주차대수, 준공 연차, 평형별 최근 시세 및 변동률, 전세가율, 최근 실거래 10건, 월별 시세 추이) 단일 요청 통합 조회 (미존재 시 404 반환)
+- **파라미터**: `pnu` (경로 파라미터, 19자리 필지 식별자 필수)
+- **응답 래퍼**: `BuildingDetailSummaryResponse` (미존재 시 404 `BUILDING_NOT_FOUND`)
+
+### 9. `GET /summary/trends`
+- **설명**: 행정동 시세, 소형/중형/대형 평형별 시세/변동률, DB `adjacent_dong_codes` 기반 인접동 시세 벤치마크 및 구 전체 평균 시세 반환
+- **파라미터**: `admin_dong_code` (필수), `period_months` (선택, 기본 3), `building_type` (선택), `include_adjacent` (선택, 기본 true)
+- **응답 래퍼**: `DongTrendsSummaryResponse` (미존재 시 404 `DONG_NOT_FOUND`)
+
+### 10. `GET /developments/{project_id}`
+- **설명**: 정비사업 단건 식별자 기준 구역 상세 및 1~6단계 마일스톤 타임라인 이력 조회
+- **파라미터**: `project_id` (경로 파라미터, 예: `DEV_1147010100101710061`)
+- **응답 래퍼**: `DevelopmentDetailResponse` (미존재 시 404 `DEVELOPMENT_NOT_FOUND`)
+
+### 11. `GET /summary/region-comparison`
+- **설명**: 두 행정동(예: 목1동 vs 신정1동) 간 매매가, 전세가율, 거래량, 중위 평단가 1:1 비교 지표 조회
+- **파라미터**: `base_admin_dong_code` (필수), `target_admin_dong_code` (필수), `period_months` (선택, 기본 3)
+- **응답 래퍼**: `RegionComparisonResponse` (미존재 시 404)
+
+
+
 ---
 
 ## ⚙️ 시스템 및 헬스 체크

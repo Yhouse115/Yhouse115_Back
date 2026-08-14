@@ -5,17 +5,33 @@ from fastapi import APIRouter, Depends, Query
 
 from app.db.postgres import get_db_connection
 from app.schemas.transaction import (
+    BuildingDetailSummaryResponse,
     BuildingListResponse,
+    BuildingPnuResolutionResponse,
     BuildingUnitsResponse,
+    DevelopmentDetailResponse,
     DevelopmentListResponse,
+    DongTrendsSummaryResponse,
     InventorySummaryResponse,
+    RegionComparisonResponse,
     RentListResponse,
+
     TradeListResponse,
     TransactionCountResponse,
 )
+
 from app.services.transaction_service import TransactionService
 
 router = APIRouter(tags=["Transaction & Building & Development APIs"])
+
+
+@router.get("/buildings/resolve-pnu", response_model=BuildingPnuResolutionResponse)
+async def resolve_building_pnu(
+    address: str = Query(..., description="법정동 기준 지번주소"),
+    household_count: Optional[int] = Query(None, ge=0, description="동일 지번 후보 구분용 세대수"),
+    conn: asyncpg.Connection = Depends(get_db_connection),
+):
+    return await TransactionService.resolve_building_pnu(conn, address, household_count)
 
 
 @router.get("/summary/inventory", response_model=InventorySummaryResponse)
@@ -40,9 +56,39 @@ async def get_summary_transaction_count(
     )
 
 
+@router.get("/summary/trends", response_model=DongTrendsSummaryResponse)
+async def get_dong_trends_summary(
+    admin_dong_code: str = Query(..., description="행정동 10자리 코드 (예: 1147062000)"),
+    period_months: int = Query(3, ge=1, le=36, description="집계 기간 (개월, 기본 3개월)"),
+    building_type: Optional[List[str]] = Query(None, description="건축물 유형 (APT, TOWNHOUSE, OFFICETEL)"),
+    include_adjacent: bool = Query(True, description="인접동 벤치마크 포함 여부"),
+    comparison_mode: str = Query(
+        "prev_period",
+        description="변동률 비교 기준: prev_period(직전 N개월 대비) | yoy(전년 동기 대비)"
+    ),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_dong_trends_summary(
+        conn, admin_dong_code, period_months, building_type, include_adjacent, comparison_mode
+    )
+
+
+@router.get("/summary/region-comparison", response_model=RegionComparisonResponse)
+async def get_region_comparison(
+    base_admin_dong_code: str = Query(..., description="기준 행정동 10자리 코드 (예: 1147051000)"),
+    target_admin_dong_code: str = Query(..., description="비교 대상 행정동 10자리 코드 (예: 1147062000)"),
+    period_months: int = Query(3, ge=1, le=36, description="집계 기간 (개월, 기본 3개월)"),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_region_comparison(
+        conn, base_admin_dong_code, target_admin_dong_code, period_months
+    )
+
+
 @router.get("/transactions/trades", response_model=TradeListResponse)
 async def get_trades_list(
     admin_dong_code: Optional[str] = Query(None, description="관할 행정동 10자리 코드"),
+    pnu: Optional[str] = Query(None, description="건축물 PNU 19자리 (건물 단위 필터링)"),
     period_start: date = Query(..., description="조회 기간 시작일 (YYYY-MM-DD)"),
     period_end: date = Query(..., description="조회 기간 종료일 (YYYY-MM-DD)"),
     building_type: Optional[List[str]] = Query(None, description="건축물 유형 (APT, TOWNHOUSE, OFFICETEL, DETACHED)"),
@@ -57,7 +103,7 @@ async def get_trades_list(
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
     return await TransactionService.get_trades_list(
-        conn, admin_dong_code, period_start, period_end, building_type, apt_name,
+        conn, admin_dong_code, pnu, period_start, period_end, building_type, apt_name,
         min_deal_amount, max_deal_amount, min_excl_area, max_excl_area, page, size, sort
     )
 
@@ -65,6 +111,7 @@ async def get_trades_list(
 @router.get("/transactions/rents", response_model=RentListResponse)
 async def get_rents_list(
     admin_dong_code: Optional[str] = Query(None, description="관할 행정동 10자리 코드"),
+    pnu: Optional[str] = Query(None, description="건축물 PNU 19자리 (건물 단위 필터링)"),
     period_start: date = Query(..., description="조회 기간 시작일 (YYYY-MM-DD)"),
     period_end: date = Query(..., description="조회 기간 종료일 (YYYY-MM-DD)"),
     rent_type: Optional[str] = Query(None, description="임대 유형 (JEONSE, MONTHLY)"),
@@ -82,7 +129,7 @@ async def get_rents_list(
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
     return await TransactionService.get_rents_list(
-        conn, admin_dong_code, period_start, period_end, rent_type, building_type, apt_name,
+        conn, admin_dong_code, pnu, period_start, period_end, rent_type, building_type, apt_name,
         min_deposit, max_deposit, min_monthly_rent, max_monthly_rent,
         min_excl_area, max_excl_area, page, size, sort
     )
@@ -103,6 +150,14 @@ async def get_developments_list(
     return await TransactionService.get_developments_list(
         conn, admin_dong_code, dev_type, project_name, stage_code, is_completed, pnu, page, size
     )
+
+
+@router.get("/developments/{project_id}", response_model=DevelopmentDetailResponse)
+async def get_development_detail(
+    project_id: str,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_development_detail(conn, project_id)
 
 
 @router.get("/buildings", response_model=BuildingListResponse)
@@ -129,3 +184,11 @@ async def get_building_unit_types(
     return await TransactionService.get_building_unit_types(
         conn, pnu, building_name, admin_dong_code
     )
+
+
+@router.get("/buildings/{pnu}/summary", response_model=BuildingDetailSummaryResponse)
+async def get_building_detail_summary(
+    pnu: str,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    return await TransactionService.get_building_detail_summary(conn, pnu)
