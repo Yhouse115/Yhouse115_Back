@@ -190,6 +190,20 @@ class BuildingListResponse(BaseModel):
     data: BuildingListData
 
 
+class BuildingPnuResolutionData(BaseModel):
+    pnu: str
+    buildingName: Optional[str] = None
+    legalDongName: str
+    jibun: str
+    matchMethod: str = "legal_dong_jibun"
+
+
+class BuildingPnuResolutionResponse(BaseModel):
+    status: int = 200
+    message: str = "SUCCESS"
+    data: BuildingPnuResolutionData
+
+
 # --- API #7: Building Unit Types (/buildings/unit-types) ---
 class UnitTypeItemDTO(BaseModel):
     id: int
@@ -386,6 +400,5 @@ class RegionComparisonResponse(BaseModel):
     status: int = 200
     message: str = "SUCCESS"
     data: Optional[RegionComparisonData] = None
-
 
 

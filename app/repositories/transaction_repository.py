@@ -45,6 +45,30 @@ def normalize_apartment_name(apartment_name: Optional[str]) -> Optional[str]:
 
 
 class TransactionRepository:
+    @staticmethod
+    async def resolve_building_pnu(
+        conn: asyncpg.Connection,
+        legal_dong_name: str,
+        jibun: str,
+        household_count: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        rows = await conn.fetch(
+            """
+            SELECT pnu, property_name, legal_dong_name, jibun, total_households
+            FROM public.residential_buildings
+            WHERE legal_dong_name = $1
+              AND regexp_replace(COALESCE(jibun, ''), '[^0-9-]', '', 'g') = $2
+            ORDER BY
+              CASE WHEN $3::integer IS NOT NULL AND total_households = $3 THEN 0 ELSE 1 END,
+              pnu
+            LIMIT 5
+            """,
+            legal_dong_name,
+            jibun,
+            household_count,
+        )
+        return [dict(row) for row in rows]
+
 
     @staticmethod
     async def get_admin_dong_info(conn: asyncpg.Connection, admin_dong_code: str) -> Optional[Dict[str, Any]]:

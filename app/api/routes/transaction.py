@@ -7,6 +7,7 @@ from app.db.postgres import get_db_connection
 from app.schemas.transaction import (
     BuildingDetailSummaryResponse,
     BuildingListResponse,
+    BuildingPnuResolutionResponse,
     BuildingUnitsResponse,
     DevelopmentDetailResponse,
     DevelopmentListResponse,
@@ -22,6 +23,15 @@ from app.schemas.transaction import (
 from app.services.transaction_service import TransactionService
 
 router = APIRouter(tags=["Transaction & Building & Development APIs"])
+
+
+@router.get("/buildings/resolve-pnu", response_model=BuildingPnuResolutionResponse)
+async def resolve_building_pnu(
+    address: str = Query(..., description="법정동 기준 지번주소"),
+    household_count: Optional[int] = Query(None, ge=0, description="동일 지번 후보 구분용 세대수"),
+    conn: asyncpg.Connection = Depends(get_db_connection),
+):
+    return await TransactionService.resolve_building_pnu(conn, address, household_count)
 
 
 @router.get("/summary/inventory", response_model=InventorySummaryResponse)
@@ -182,4 +192,3 @@ async def get_building_detail_summary(
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
     return await TransactionService.get_building_detail_summary(conn, pnu)
-

@@ -1,6 +1,7 @@
 from datetime import date
 import math
 from typing import Any, Dict, List, Optional
+import re
 import asyncpg
 
 from fastapi import HTTPException, status
@@ -17,6 +18,8 @@ from app.schemas.transaction import (
     BuildingItemDTO,
     BuildingListData,
     BuildingListResponse,
+    BuildingPnuResolutionData,
+    BuildingPnuResolutionResponse,
     BuildingPriceTrendItemDTO,
     BuildingRecentTradeItemDTO,
     BuildingUnitTypeSummaryDTO,
@@ -85,6 +88,58 @@ def generate_year_month_sequence(start_date: date, end_date: date) -> List[str]:
 
 
 class TransactionService:
+    @classmethod
+    async def resolve_building_pnu(
+        cls,
+        conn: asyncpg.Connection,
+        address: str,
+        household_count: Optional[int],
+    ) -> BuildingPnuResolutionResponse:
+        # KREB complex address is a legal-dong lot address, e.g. "... 목동 901".
+        matches = re.findall(r"([가-힣0-9]+(?:동|가|읍|면|리))\s+(\d+(?:-\d+)?)", address.strip())
+        if not matches:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="INVALID_JIBUN_ADDRESS: 법정동과 지번을 주소에서 추출할 수 없습니다.",
+            )
+
+        legal_dong_name, jibun = matches[-1]
+        rows = await TransactionRepository.resolve_building_pnu(
+            conn, legal_dong_name, jibun, household_count
+        )
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"BUILDING_PNU_NOT_FOUND: {legal_dong_name} {jibun}에 해당하는 건축물이 없습니다.",
+            )
+
+        if len(rows) > 1:
+            exact_households = [
+                row for row in rows
+                if household_count is not None and row.get("total_households") == household_count
+            ]
+            if len(exact_households) == 1:
+                row = exact_households[0]
+                match_method = "legal_dong_jibun_households"
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"AMBIGUOUS_BUILDING_PNU: {legal_dong_name} {jibun}의 PNU 후보가 여러 개입니다.",
+                )
+        else:
+            row = rows[0]
+            match_method = "legal_dong_jibun"
+
+        return BuildingPnuResolutionResponse(
+            data=BuildingPnuResolutionData(
+                pnu=row["pnu"],
+                buildingName=row.get("property_name"),
+                legalDongName=legal_dong_name,
+                jibun=jibun,
+                matchMethod=match_method,
+            )
+        )
+
 
     @classmethod
     async def get_inventory_summary(
@@ -1242,5 +1297,3 @@ class TransactionService:
         )
 
         return RegionComparisonResponse(status=200, message="SUCCESS", data=data)
-
-
