@@ -208,6 +208,7 @@ class TransactionService:
         cls,
         conn: asyncpg.Connection,
         admin_dong_code: Optional[str],
+        pnu: Optional[str],
         period_start: date,
         period_end: date,
         raw_bld_types: Optional[List[str]],
@@ -239,7 +240,7 @@ class TransactionService:
                         bld_types.append(sub_clean)
 
         total_elements, rows = await TransactionRepository.get_trades_list(
-            conn, admin_dong_code, period_start, period_end, bld_types,
+            conn, admin_dong_code, pnu, period_start, period_end, bld_types,
             apt_name, min_deal_amount, max_deal_amount, min_excl_area, max_excl_area,
             offset, size, sort_col, sort_dir
         )
@@ -296,6 +297,7 @@ class TransactionService:
         cls,
         conn: asyncpg.Connection,
         admin_dong_code: Optional[str],
+        pnu: Optional[str],
         period_start: date,
         period_end: date,
         rent_type: Optional[str],
@@ -330,7 +332,7 @@ class TransactionService:
                         bld_types.append(sub_clean)
 
         total_elements, rows = await TransactionRepository.get_rents_list(
-            conn, admin_dong_code, period_start, period_end, rent_type, bld_types,
+            conn, admin_dong_code, pnu, period_start, period_end, rent_type, bld_types,
             apt_name, min_deposit, max_deposit, min_monthly_rent, max_monthly_rent,
             min_excl_area, max_excl_area, offset, size, sort_col, sort_dir
         )
@@ -583,8 +585,8 @@ class TransactionService:
         items = []
         for r in rows:
             u_date = r.get("use_approval_date")
-            u_str = u_date.isoformat() if u_date else None
-            b_year = u_date.year if u_date else None
+            u_str = u_date.isoformat() if hasattr(u_date, "isoformat") else (str(u_date) if u_date else None)
+            b_year = u_date.year if hasattr(u_date, "year") else (int(str(u_date)[:4]) if (u_date and str(u_date)[:4].isdigit()) else None)
 
             items.append(
                 BuildingItemDTO(
@@ -741,13 +743,28 @@ class TransactionService:
 
         # 2. Unit Types Summary DTOs
         unit_type_dtos = []
+        all_excl_areas = [float(ut["exclusive_area"]) for ut in unit_types_raw]
+
         for ut in unit_types_raw:
             excl = float(ut["exclusive_area"])
             pyung = int(ut["pyung_type"])
             hh_cnt = int(ut["household_count"])
 
-            matching_trades = [t for t in trades if abs(float(t["excl_area"]) - excl) <= 1.0]
-            matching_rents = [r for r in rents if abs(float(r["excl_area"]) - excl) <= 1.0]
+            # 거래의 전용면적이 속하는 가장 가까운 단일 평형으로만 고유 매칭 (84.96과 84.98 중복 방지)
+            matching_trades = [
+                t for t in trades
+                if min(all_excl_areas, key=lambda a: abs(a - float(t["excl_area"]))) == excl
+                   and abs(float(t["excl_area"]) - excl) <= 1.0
+            ]
+            matching_rents = [
+                r for r in rents
+                if min(all_excl_areas, key=lambda a: abs(a - float(r["excl_area"]))) == excl
+                   and abs(float(r["excl_area"]) - excl) <= 1.0
+                   and (
+                       str(r.get("trade_type") or "").strip().upper() in ("전세", "JEONSE")
+                       or ((r.get("monthly_rent") or 0) == 0 and (r.get("deal_amount") or 0) > 0)
+                   )
+            ]
 
             recent_trade_price = matching_trades[0]["deal_amount"] if matching_trades else None
             price_change_rate = None
@@ -788,7 +805,8 @@ class TransactionService:
                 )
             )
 
-        # 3. Recent Trades DTOs (Top 10 combined)
+        # 3. 건축물의 전체 거래 DTOs. 프런트의 기간 차트와 거래내역 페이지가
+        # 같은 배열을 사용하므로 임의로 최신 50건만 자르지 않는다.
         combined_all = []
         for t in trades:
             combined_all.append({
@@ -802,7 +820,13 @@ class TransactionService:
                 "pricePerM2": float(t["price_per_m2"]) if t.get("price_per_m2") else None
             })
         for r in rents:
-            r_type = "JEONSE" if r.get("trade_type") == "전세" else ("MONTHLY" if r.get("trade_type") == "월세" else str(r.get("trade_type")))
+            rent_type = str(r.get("trade_type") or "").strip().upper()
+            if rent_type in ("전세", "JEONSE"):
+                r_type = "JEONSE"
+            elif rent_type in ("월세", "MONTHLY") or (r.get("monthly_rent") or 0) > 0:
+                r_type = "MONTHLY"
+            else:
+                r_type = rent_type
             combined_all.append({
                 "id": f"RN_{r['id']}",
                 "tradeType": r_type,
@@ -815,7 +839,7 @@ class TransactionService:
             })
 
         combined_all.sort(key=lambda x: x["dealDate"], reverse=True)
-        recent_trades_dtos = [BuildingRecentTradeItemDTO(**item) for item in combined_all[:10]]
+        recent_trades_dtos = [BuildingRecentTradeItemDTO(**item) for item in combined_all]
 
         # 4. Price Trends DTOs
         trend_dtos = [
@@ -844,14 +868,15 @@ class TransactionService:
         admin_dong_code: str,
         period_months: int = 3,
         raw_bld_types: Optional[List[str]] = None,
-        include_adjacent: bool = True
+        include_adjacent: bool = True,
+        comparison_mode: str = "prev_period"  # "prev_period" | "yoy"
     ) -> DongTrendsSummaryResponse:
         bld_types = None
         if raw_bld_types:
             bld_types = [normalize_building_type_code(b.strip()) for b in raw_bld_types if b.strip()]
 
         result = await TransactionRepository.get_dong_trends_summary(
-            conn, admin_dong_code, period_months, bld_types
+            conn, admin_dong_code, period_months, bld_types, comparison_mode
         )
         if not result:
             raise HTTPException(
@@ -935,6 +960,7 @@ class TransactionService:
             cat_trades_curr = [t for t in b_trades_curr if t.get("excl_area") and cat_filter(float(t["excl_area"]))]
             cat_trades_prev = [t for t in b_trades_prev if t.get("excl_area") and cat_filter(float(t["excl_area"]))]
 
+            # 매매 지표
             cat_amounts_curr = [t["deal_amount"] for t in cat_trades_curr if t.get("deal_amount")]
             cat_amounts_prev = [t["deal_amount"] for t in cat_trades_prev if t.get("deal_amount")]
             cat_pyeongs_curr = [
@@ -951,6 +977,29 @@ class TransactionService:
             c_min = min(cat_amounts_curr, default=None)
             c_max = max(cat_amounts_curr, default=None)
 
+            # 전세 지표 (전세만 필터)
+            cat_jeonse_curr = [
+                r for r in b_rents_curr
+                if r.get("excl_area") and cat_filter(float(r["excl_area"]))
+                and r.get("rent_type") in ("JEONSE", "jeonse", "J")
+            ]
+            cat_jeonse_prev = [
+                r for r in b_rents_prev
+                if r.get("excl_area") and cat_filter(float(r["excl_area"]))
+                and r.get("rent_type") in ("JEONSE", "jeonse", "J")
+            ]
+            j_amounts_curr = [r["deposit"] for r in cat_jeonse_curr if r.get("deposit")]
+            j_amounts_prev = [r["deposit"] for r in cat_jeonse_prev if r.get("deposit")]
+            j_pyeongs_curr = [
+                r["deposit"] / (float(r["excl_area"]) / 3.30578)
+                for r in cat_jeonse_curr
+                if r.get("deposit") and r.get("excl_area") and float(r["excl_area"]) > 0
+            ]
+            j_avg = calc_avg(j_amounts_curr)
+            j_prev_avg = calc_avg(j_amounts_prev)
+            j_change = calc_change_rate(j_avg, j_prev_avg)
+            j_med_pyeong = round(calc_median(j_pyeongs_curr), 1) if calc_median(j_pyeongs_curr) else None
+
             unit_size_dtos.append(
                 DongUnitSizeStatDTO(
                     category=cat_name,
@@ -961,7 +1010,11 @@ class TransactionService:
                     medianPrice=c_med,
                     minPrice=c_min,
                     maxPrice=c_max,
-                    tradeCount=len(cat_trades_curr)
+                    tradeCount=len(cat_trades_curr),
+                    avgRentDeposit=j_avg,
+                    rentChangeRate=j_change,
+                    medianRentPyeongPrice=j_med_pyeong,
+                    rentCount=len(cat_jeonse_curr)
                 )
             )
 
@@ -1047,6 +1100,7 @@ class TransactionService:
             adminDongCode=admin_dong_code,
             adminDongName=base_info.get("admin_dong_name") or "",
             periodMonths=period_months,
+            comparisonMode=result.get("comparison_mode", "prev_period"),
             baseDongStats=base_dong_stats,
             adjacentDongs=adjacent_dtos,
             adjacentAvgPyeongPrice=adj_avg_pyeong_price,
@@ -1188,6 +1242,5 @@ class TransactionService:
         )
 
         return RegionComparisonResponse(status=200, message="SUCCESS", data=data)
-
 
 

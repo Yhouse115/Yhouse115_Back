@@ -294,12 +294,16 @@ class DongUnitSizeStatDTO(BaseModel):
     category: str
     exclusiveAreaRange: str
     avgTradePrice: Optional[int] = None
-    priceChangeRate: Optional[float] = None
+    priceChangeRate: Optional[float] = None       # 매매 변동률 (전분기 또는 전년 동기 대비)
     medianPyeongPrice: Optional[float] = None
     medianPrice: Optional[int] = None
     minPrice: Optional[int] = None
     maxPrice: Optional[int] = None
     tradeCount: int = 0
+    avgRentDeposit: Optional[int] = None          # 전세 평균 보증금
+    rentChangeRate: Optional[float] = None        # 전세 변동률
+    medianRentPyeongPrice: Optional[float] = None # 전세 평균 평단가
+    rentCount: int = 0
 
 
 class DongBaseStatsDTO(BaseModel):
@@ -333,6 +337,7 @@ class DongTrendsSummaryData(BaseModel):
     adminDongCode: str
     adminDongName: str
     periodMonths: int
+    comparisonMode: str                            # "prev_period" | "yoy"
     baseDongStats: DongBaseStatsDTO
     adjacentDongs: List[AdjacentDongStatDTO] = []
     adjacentAvgPyeongPrice: Optional[float] = None

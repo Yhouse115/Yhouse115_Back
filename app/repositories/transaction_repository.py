@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Any, Dict, List, Optional, Tuple
+import re
 import asyncpg
 
 
@@ -29,6 +30,18 @@ def normalize_building_type_code(house_type_str: Optional[str]) -> str:
     elif any(k in v for k in ["DETACHED", "단독", "다가구"]):
         return "DETACHED"
     return "APT"
+
+
+def normalize_apartment_name(apartment_name: Optional[str]) -> Optional[str]:
+    """실거래 원본 단지명을 서비스 화면에서 사용하는 표기로 변환한다."""
+    if not apartment_name:
+        return apartment_name
+
+    compact_name = "".join(str(apartment_name).split())
+    mokdong_match = re.fullmatch(r"목동신시가지(?:아파트)?(\d+)(?:단지)?", compact_name)
+    if mokdong_match:
+        return f"신시가지아파트{mokdong_match.group(1)}단지"
+    return str(apartment_name)
 
 
 class TransactionRepository:
@@ -113,6 +126,7 @@ class TransactionRepository:
     async def get_trades_list(
         conn: asyncpg.Connection,
         admin_dong_code: Optional[str],
+        pnu: Optional[str],
         period_start: date,
         period_end: date,
         building_types: Optional[List[str]],
@@ -137,6 +151,11 @@ class TransactionRepository:
         if admin_dong_code:
             where_clauses.append(f"(t.admin_dong_code = ${param_idx} OR COALESCE(b_exact.admin_dong_code, b_main.admin_dong_code) = ${param_idx})")
             params.append(admin_dong_code)
+            param_idx += 1
+
+        if pnu:
+            where_clauses.append(f"(t.pnu = ${param_idx} OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(${param_idx}, 1, 15) || '0000')")
+            params.append(pnu)
             param_idx += 1
 
         if building_types:
@@ -226,6 +245,7 @@ class TransactionRepository:
     async def get_rents_list(
         conn: asyncpg.Connection,
         admin_dong_code: Optional[str],
+        pnu: Optional[str],
         period_start: date,
         period_end: date,
         rent_type: Optional[str],
@@ -253,6 +273,11 @@ class TransactionRepository:
         if admin_dong_code:
             where_clauses.append(f"(r.admin_dong_code = ${param_idx} OR COALESCE(b_exact.admin_dong_code, b_main.admin_dong_code) = ${param_idx})")
             params.append(admin_dong_code)
+            param_idx += 1
+
+        if pnu:
+            where_clauses.append(f"(r.pnu = ${param_idx} OR SUBSTR(r.pnu, 1, 15) || '0000' = SUBSTR(${param_idx}, 1, 15) || '0000')")
+            params.append(pnu)
             param_idx += 1
 
         if rent_type and rent_type.upper() in ("JEONSE", "MONTHLY", "전세", "월세"):
@@ -503,7 +528,16 @@ class TransactionRepository:
                 b.jibun,
                 b.total_households,
                 b.total_parking,
-                b.use_approval_date
+                COALESCE(
+                    b.use_approval_date::text,
+                    (
+                        SELECT t.build_year::text
+                        FROM public.transaction_trades t
+                        WHERE (t.pnu = b.pnu OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b.pnu, 1, 15) || '0000')
+                          AND t.build_year IS NOT NULL
+                        LIMIT 1
+                    )
+                ) AS use_approval_date
             {from_sql}
             {where_sql}
             ORDER BY b.pnu ASC
@@ -580,7 +614,29 @@ class TransactionRepository:
         info_query = """
             SELECT 
                 b.pnu,
-                COALESCE(b.property_name, b.jibun_address) AS building_name,
+                COALESCE(
+                    (
+                        SELECT CASE
+                            -- 국토부 실거래 단지명(예: 목동신시가지1)을 화면용
+                            -- 공식 표기(신시가지아파트1단지)로 정규화한다.
+                            WHEN REGEXP_REPLACE(t.apt_name, '\\s', '', 'g') ~ '^목동신시가지(아파트)?[0-9]+(단지)?$'
+                                THEN '신시가지아파트'
+                                    || (REGEXP_MATCH(
+                                        REGEXP_REPLACE(t.apt_name, '\\s', '', 'g'),
+                                        '([0-9]+)'
+                                    ))[1]
+                                    || '단지'
+                            ELSE t.apt_name
+                        END
+                        FROM public.transaction_trades t
+                        WHERE (t.pnu = b.pnu OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b.pnu, 1, 15) || '0000')
+                          AND t.apt_name IS NOT NULL
+                        ORDER BY (t.pnu = b.pnu) DESC, t.deal_date DESC, t.id DESC
+                        LIMIT 1
+                    ),
+                    b.property_name,
+                    b.jibun_address
+                ) AS building_name,
                 b.property_category AS building_type,
                 COALESCE(b.admin_dong_code, ad.admin_dong_code) AS admin_dong_code,
                 COALESCE(b.admin_dong_name, ad.admin_dong_name) AS admin_dong_name,
@@ -590,7 +646,16 @@ class TransactionRepository:
                 b.jibun,
                 b.total_households,
                 b.total_parking,
-                b.use_approval_date::text AS use_approval_date
+                COALESCE(
+                    b.use_approval_date::text,
+                    (
+                        SELECT t.build_year::text
+                        FROM public.transaction_trades t
+                        WHERE (t.pnu = b.pnu OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b.pnu, 1, 15) || '0000')
+                          AND t.build_year IS NOT NULL
+                        LIMIT 1
+                    )
+                ) AS use_approval_date
             FROM public.residential_buildings b
             LEFT JOIN public.admin_dong ad ON b.legal_dong_name = ad.legal_dong_name OR b.admin_dong_code = ad.admin_dong_code
             WHERE b.pnu = $1
@@ -603,7 +668,7 @@ class TransactionRepository:
         # Fallback if not found in residential_buildings master table: check transaction_trades
         if not building_info:
             fb_query = """
-                SELECT 
+                SELECT
                     t.pnu,
                     t.apt_name AS building_name,
                     t.house_type AS building_type,
@@ -618,12 +683,18 @@ class TransactionRepository:
                     t.build_year::text AS use_approval_date
                 FROM public.transaction_trades t
                 WHERE t.pnu = $1 OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR($1, 1, 15) || '0000'
+                ORDER BY (t.pnu = $1) DESC, t.deal_date DESC, t.id DESC
                 LIMIT 1;
             """
             fb_row = await conn.fetchrow(fb_query, pnu)
             if not fb_row:
                 return None
             building_info = dict(fb_row)
+
+        # 건축물 마스터가 없어 실거래 테이블로 fallback한 경우에도 동일한
+        # 단지명 표기를 보장한다.
+        raw_building_name = building_info.get("building_name")
+        building_info["building_name"] = normalize_apartment_name(raw_building_name)
 
         # 2. Fetch unit types
         units_query = """
@@ -637,6 +708,27 @@ class TransactionRepository:
         """
         units_rows = await conn.fetch(units_query, pnu)
         unit_types = [dict(r) for r in units_rows]
+
+        # If not present in residential_buildings_unit_types, aggregate from actual trades & rents
+        if not unit_types:
+            fb_units_query = """
+                SELECT
+                    excl_area AS exclusive_area,
+                    GREATEST(1, ROUND(excl_area / 3.30578))::int AS pyung_type,
+                    COUNT(*)::int AS household_count
+                FROM (
+                    SELECT excl_area FROM public.transaction_trades
+                    WHERE (pnu = $1 OR SUBSTR(pnu, 1, 15) || '0000' = SUBSTR($1, 1, 15) || '0000')
+                    UNION ALL
+                    SELECT excl_area FROM public.transaction_rents
+                    WHERE (pnu = $1 OR SUBSTR(pnu, 1, 15) || '0000' = SUBSTR($1, 1, 15) || '0000')
+                ) sub
+                WHERE excl_area IS NOT NULL
+                GROUP BY excl_area
+                ORDER BY pyung_type ASC, exclusive_area ASC;
+            """
+            fb_units_rows = await conn.fetch(fb_units_query, pnu)
+            unit_types = [dict(r) for r in fb_units_rows]
 
         # 3. Fetch all trades for this PNU for unit-level aggregation and recent trades
         trades_query = """
@@ -694,6 +786,7 @@ class TransactionRepository:
                     COUNT(*) AS rent_cnt
                 FROM public.transaction_rents r
                 WHERE (r.pnu = $1 OR SUBSTR(r.pnu, 1, 15) || '0000' = SUBSTR($1, 1, 15) || '0000')
+                  AND (r.rent_type IN ('전세', 'JEONSE') OR (COALESCE(r.monthly_rent, 0) = 0 AND r.deposit > 0))
                 GROUP BY TO_CHAR(r.deal_date, 'YYYY-MM')
             )
             SELECT 
@@ -722,7 +815,8 @@ class TransactionRepository:
         conn: asyncpg.Connection,
         admin_dong_code: str,
         period_months: int = 3,
-        building_types: Optional[List[str]] = None
+        building_types: Optional[List[str]] = None,
+        comparison_mode: str = "prev_period"  # "prev_period": 직전 N개월 / "yoy": 전년 동기
     ) -> Optional[Dict[str, Any]]:
         # 1. Fetch base admin_dong info & adjacent dong codes
         dong_query = """
@@ -755,7 +849,15 @@ class TransactionRepository:
 
         from dateutil.relativedelta import relativedelta
         curr_start = max_date - relativedelta(months=period_months)
-        prev_start = curr_start - relativedelta(months=period_months)
+
+        # comparison_mode에 따라 이전 기간 성울
+        if comparison_mode == "yoy":
+            # 전년 동일 시작점부터 동일 N개월 구간
+            prev_start = curr_start - relativedelta(years=1)
+            prev_end   = max_date  - relativedelta(years=1)
+        else:  # prev_period (기본): 직전 N개월
+            prev_start = curr_start - relativedelta(months=period_months)
+            prev_end   = curr_start
 
         gu_code_prefix = admin_dong_code[:5]
 
@@ -776,7 +878,7 @@ class TransactionRepository:
             WHERE (t.admin_dong_code = $3 OR b.admin_dong_code = $3)
               AND t.deal_date >= $1 AND t.deal_date < $2 AND t.cancel_deal_day IS NULL;
         """
-        b_trades_prev = [dict(r) for r in await conn.fetch(b_trades_prev_q, prev_start, curr_start, admin_dong_code)]
+        b_trades_prev = [dict(r) for r in await conn.fetch(b_trades_prev_q, prev_start, prev_end, admin_dong_code)]
 
         b_rents_curr_q = """
             SELECT r.deposit, r.monthly_rent, r.excl_area, r.rent_type, r.deal_date
@@ -794,7 +896,7 @@ class TransactionRepository:
             WHERE (r.admin_dong_code = $3 OR b.admin_dong_code = $3)
               AND r.deal_date >= $1 AND r.deal_date < $2;
         """
-        b_rents_prev = [dict(r) for r in await conn.fetch(b_rents_prev_q, prev_start, curr_start, admin_dong_code)]
+        b_rents_prev = [dict(r) for r in await conn.fetch(b_rents_prev_q, prev_start, prev_end, admin_dong_code)]
 
         # 4. Adjacent dongs trades & rents
         adj_trades_map = {}
@@ -841,7 +943,7 @@ class TransactionRepository:
             WHERE SUBSTR(t.admin_dong_code, 1, 5) = $3
               AND t.deal_date >= $1 AND t.deal_date < $2 AND t.cancel_deal_day IS NULL;
         """
-        gu_trades_prev = [dict(r) for r in await conn.fetch(gu_trades_prev_q, prev_start, curr_start, gu_code_prefix)]
+        gu_trades_prev = [dict(r) for r in await conn.fetch(gu_trades_prev_q, prev_start, prev_end, gu_code_prefix)]
 
         return {
             "base_info": base_info,
@@ -855,6 +957,7 @@ class TransactionRepository:
             "gu_trades_curr": gu_trades_curr,
             "gu_trades_prev": gu_trades_prev,
             "period_months": period_months,
+            "comparison_mode": comparison_mode,
         }
 
     @staticmethod
@@ -925,7 +1028,3 @@ class TransactionRepository:
             "rents_curr": rents_curr,
             "rents_prev": rents_prev
         }
-
-
-
-
