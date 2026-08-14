@@ -279,7 +279,9 @@ def apartment_name(row: Dict[str, Any]) -> str:
 
 
 def apartment_address(row: Dict[str, Any]) -> str:
-    for key in ("road_address", "parcel_address", "address"):
+    # Building-detail PNU resolution is based on legal-dong jibun addresses.
+    # Prefer parcel addresses so frontend "단지 상세 보기" can resolve directly.
+    for key in ("parcel_address", "road_address", "address"):
         value = row.get(key)
         if value:
             return str(value)

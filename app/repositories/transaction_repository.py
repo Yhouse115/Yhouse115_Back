@@ -54,18 +54,15 @@ class TransactionRepository:
     ) -> List[Dict[str, Any]]:
         rows = await conn.fetch(
             """
-            SELECT pnu, property_name, legal_dong_name, jibun, total_households
+            SELECT pnu, property_name, legal_dong_name, jibun, NULL::integer AS total_households
             FROM public.residential_buildings
             WHERE legal_dong_name = $1
               AND regexp_replace(COALESCE(jibun, ''), '[^0-9-]', '', 'g') = $2
-            ORDER BY
-              CASE WHEN $3::integer IS NOT NULL AND total_households = $3 THEN 0 ELSE 1 END,
-              pnu
+            ORDER BY pnu
             LIMIT 5
             """,
             legal_dong_name,
             jibun,
-            household_count,
         )
         return [dict(row) for row in rows]
 
@@ -668,17 +665,17 @@ class TransactionRepository:
                 b.legal_dong_name,
                 b.jibun_address,
                 b.jibun,
-                b.total_households,
-                b.total_parking,
+                NULL::integer AS total_households,
+                NULL::integer AS total_parking,
                 COALESCE(
-                    b.use_approval_date::text,
                     (
                         SELECT t.build_year::text
                         FROM public.transaction_trades t
                         WHERE (t.pnu = b.pnu OR SUBSTR(t.pnu, 1, 15) || '0000' = SUBSTR(b.pnu, 1, 15) || '0000')
                           AND t.build_year IS NOT NULL
                         LIMIT 1
-                    )
+                    ),
+                    NULL
                 ) AS use_approval_date
             FROM public.residential_buildings b
             LEFT JOIN public.admin_dong ad ON b.legal_dong_name = ad.legal_dong_name OR b.admin_dong_code = ad.admin_dong_code

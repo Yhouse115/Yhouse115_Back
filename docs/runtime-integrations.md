@@ -66,6 +66,19 @@ DATABASE_URL=postgresql://whyhouse:whyhouse@database:5432/whyhouse
 
 This local DB is not the same as the Supabase CLI local stack.
 
+For APIs that query transaction/building tables directly, point `DATABASE_URL`
+at the hosted Supabase Postgres database instead of the local Docker database.
+The Supabase REST keys are not enough for these SQL-backed endpoints.
+
+```env
+# Project Settings > Database > Connection string
+DATABASE_URL=postgresql://postgres.<PROJECT_REF>:<DB_PASSWORD>@aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require
+```
+
+When running Docker Compose from the frontend directory, the backend service
+loads `../Yhouse115_Back/.env`. Keep the Supabase Postgres connection string in
+that file so the backend container connects to the hosted project.
+
 ## Supabase CLI
 
 The `supabase/` directory is used for Supabase CLI project linking and schema migrations.
