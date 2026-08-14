@@ -87,6 +87,7 @@ def test_get_walking_route_returns_render_ready_stored_coordinates() -> None:
         "crosswalkCount": 4,
         "pedestrianSignalCount": 1,
         "cctvLocationCount": 8,
+        "crossingEvents": None,
     }
 
 
@@ -154,6 +155,40 @@ def test_service_maps_latest_precomputed_route_without_calculation() -> None:
     assert route.walk_distance_meters == 910.2
     assert route.crosswalk_count == 4
     assert route.cctv_location_count == 8
+
+
+def test_service_returns_actual_crossing_events_with_matching_counts() -> None:
+    repository = FakeWalkingRouteRepository(
+        {
+            "complex_id": "CX-001",
+            "feature_id": "education_elementary_yangcheon:7081453",
+            "access_group": "elementary_school",
+            "route_coordinates": [[126.87, 37.52], [126.88, 37.53]],
+            "walk_distance_m": 910.2,
+            "walk_time_min": 13.0,
+            "route_method": "local_dijkstra",
+            "calculated_at": "2026-08-13T16:35:43+09:00",
+            "crosswalk_count": 1,
+            "pedestrian_signal_count": 1,
+            "cctv_location_count": 8,
+            "route_crossing_events": [{
+                "crosswalk_event_id": "node:229944",
+                "longitude": 126.875,
+                "latitude": 37.52,
+                "pedestrian_signals": [{"id": "25-0000004005", "longitude": 126.875, "latitude": 37.52}],
+            }],
+        }
+    )
+
+    route = __import__("asyncio").run(
+        WalkingRouteService(repository=repository).get_walking_route(
+            complex_id="CX-001", feature_id="education_elementary_yangcheon:7081453"
+        )
+    )
+
+    assert route.crossing_events is not None
+    assert route.crossing_events[0].crosswalk_event_id == "node:229944"
+    assert route.crossing_events[0].pedestrian_signals[0].id == "25-0000004005"
 
 
 def test_coordinate_validation_rejects_wrong_geojson_position_order_or_shape() -> None:

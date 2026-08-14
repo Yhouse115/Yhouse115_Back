@@ -5,7 +5,11 @@ from collections.abc import Mapping
 from typing import Any
 
 from app.repositories.walking_route import WalkingRouteRepository
-from app.schemas.walking_route import WalkingRouteResponse
+from app.schemas.walking_route import (
+    WalkingRouteCrossingEvent,
+    WalkingRoutePedestrianSignal,
+    WalkingRouteResponse,
+)
 
 
 class WalkingRouteNotFoundError(LookupError):
@@ -35,6 +39,67 @@ def route_coordinates_from_value(value: Any) -> list[tuple[float, float]]:
             raise WalkingRouteDataError("Stored route contains an out-of-range coordinate.")
         coordinates.append((longitude, latitude))
     return coordinates
+
+
+def crossing_events_from_value(value: Any) -> list[WalkingRouteCrossingEvent] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise WalkingRouteDataError("Stored crossing events are not valid JSON.") from exc
+    if not isinstance(value, list):
+        raise WalkingRouteDataError("Stored crossing events must be an array.")
+    events: list[WalkingRouteCrossingEvent] = []
+    seen_link_ids: set[str] = set()
+    seen_signal_ids: set[str] = set()
+    for event in value:
+        if not isinstance(event, Mapping):
+            raise WalkingRouteDataError("Stored crossing event must be an object.")
+        try:
+            event_id = str(event["crosswalk_event_id"]).strip()
+            longitude = float(event["longitude"])
+            latitude = float(event["latitude"])
+            signals_value = event.get("pedestrian_signals", [])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise WalkingRouteDataError("Stored crossing event is invalid.") from exc
+        if not isinstance(signals_value, list):
+            raise WalkingRouteDataError("Stored crossing-event signals must be an array.")
+        signals: list[WalkingRoutePedestrianSignal] = []
+        signal_ids: list[str] = []
+        for signal in signals_value:
+            if not isinstance(signal, Mapping):
+                raise WalkingRouteDataError("Stored crossing-event signal must be an object.")
+            try:
+                signal_id = str(signal["id"]).strip()
+                signal_longitude = float(signal["longitude"])
+                signal_latitude = float(signal["latitude"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise WalkingRouteDataError("Stored crossing-event signal is invalid.") from exc
+            if not signal_id or not -180 <= signal_longitude <= 180 or not -90 <= signal_latitude <= 90:
+                raise WalkingRouteDataError("Stored crossing-event signal is invalid.")
+            signal_ids.append(signal_id)
+            signals.append(WalkingRoutePedestrianSignal(id=signal_id, longitude=signal_longitude, latitude=signal_latitude))
+        if (
+            not event_id
+            or event_id in seen_link_ids
+            or not -180 <= longitude <= 180
+            or not -90 <= latitude <= 90
+            or any(not signal_id for signal_id in signal_ids)
+            or len(signal_ids) != len(set(signal_ids))
+            or seen_signal_ids.intersection(signal_ids)
+        ):
+            raise WalkingRouteDataError("Stored crossing event is invalid or duplicated.")
+        seen_link_ids.add(event_id)
+        seen_signal_ids.update(signal_ids)
+        events.append(WalkingRouteCrossingEvent(
+            crosswalk_event_id=event_id,
+            longitude=longitude,
+            latitude=latitude,
+            pedestrian_signals=signals,
+        ))
+    return events
 
 
 class WalkingRouteService:
@@ -83,6 +148,14 @@ class WalkingRouteService:
         missing = [name for name in required if row.get(name) is None]
         if missing:
             raise WalkingRouteDataError(f"Stored route is missing required fields: {', '.join(missing)}")
+        crossing_events = crossing_events_from_value(row.get("route_crossing_events"))
+        crosswalk_count = optional_count(row.get("crosswalk_count"))
+        pedestrian_signal_count = optional_count(row.get("pedestrian_signal_count"))
+        if crossing_events is not None and (
+            crosswalk_count != len(crossing_events)
+            or pedestrian_signal_count != sum(len(event.pedestrian_signals) for event in crossing_events)
+        ):
+            raise WalkingRouteDataError("Stored crossing-event counts do not match the crossing events.")
         return WalkingRouteResponse(
             complex_id=str(row["complex_id"]),
             feature_id=str(row["feature_id"]),
@@ -93,9 +166,10 @@ class WalkingRouteService:
             route_method=str(row["route_method"]),
             calculated_at=row["calculated_at"],
             safety_match_threshold_meters=optional_count(row.get("safety_match_threshold_m")),
-            crosswalk_count=optional_count(row.get("crosswalk_count")),
-            pedestrian_signal_count=optional_count(row.get("pedestrian_signal_count")),
+            crosswalk_count=crosswalk_count,
+            pedestrian_signal_count=pedestrian_signal_count,
             cctv_location_count=optional_count(row.get("cctv_location_count")),
+            crossing_events=crossing_events,
         )
 
 
