@@ -33,3 +33,6 @@ tmp/
 .docker/
 docker-compose.override.yml
 
+# Node (only present from local `npx supabase` CLI usage)
+node_modules/
+
